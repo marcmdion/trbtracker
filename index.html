@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Totally Rad Beauty | Clinic Dashboard v2.5</title>
+    <title>Totally Rad Beauty | Clinic Dashboard v3.2</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -22,7 +22,7 @@
         // =========================================================================
         // APP CONSTANTS & VERSIONING
         // =========================================================================
-        const APP_VERSION = "2.5.0";
+        const APP_VERSION = "3.2.0";
         
         const SERVICES = [
             "3D Skin Analysis + Custom Facial", "Dermaplaning", "MesoWhite BB Glow", "Superjection",
@@ -160,14 +160,13 @@
                 const individualStats = appState.users.map(user => {
                     const userRecords = filteredRecords.filter(r => r.therapistEmail === user.email);
                     const userTotalRev = userRecords.reduce((sum, r) => sum + r.totalAmount, 0);
-                    const userServiceRev = userRecords.reduce((sum, r) => sum + (r.serviceAmount || 0), 0);
-                    const userProductRev = userRecords.reduce((sum, r) => sum + (r.productAmount || 0), 0);
                     const userTarget = (user.hourlyRate * user.agreedHours) * 4;
                     const userClients = userRecords.length;
                     const userRebooked = userRecords.filter(r => r.isRebook).length;
                     return {
-                        name: user.name, revenue: userTotalRev, serviceRevenue: userServiceRev,
-                        productRevenue: userProductRev,
+                        name: user.name, revenue: userTotalRev, 
+                        serviceRevenue: userRecords.reduce((sum, r) => sum + (r.serviceAmount || 0), 0),
+                        productRevenue: userRecords.reduce((sum, r) => sum + (r.productAmount || 0), 0),
                         targetPct: userTarget > 0 ? (userTotalRev / userTarget) * 100 : 0,
                         clients: userClients, rebooked: userRebooked,
                         rebookRate: userClients > 0 ? (userRebooked / userClients) * 100 : 0
@@ -179,49 +178,68 @@
             generateFakeData: () => {
                 const now = new Date();
                 const fakeClients = ["Alice Smith", "Bob Jones", "Charlie Day", "Diana Prince", "Evan Wright", "George Costanza", "Elaine Benes", "Cosmo Kramer"];
+                
+                const createRandomRecord = (therapistEmail, date) => {
+                    const typeRoll = Math.random();
+                    let entryType, service, sA, pA, duration;
+
+                    if (typeRoll < 0.4) {
+                        entryType = 'service';
+                        service = SERVICES[Math.floor(Math.random() * SERVICES.length)];
+                        sA = Math.floor(Math.random() * 120) + 60;
+                        pA = 0;
+                        duration = "1h";
+                    } else if (typeRoll < 0.8) {
+                        entryType = 'service_product';
+                        service = SERVICES[Math.floor(Math.random() * SERVICES.length)];
+                        sA = Math.floor(Math.random() * 120) + 60;
+                        pA = Math.floor(Math.random() * 80) + 20;
+                        duration = "1h 15m";
+                    } else {
+                        entryType = 'product';
+                        service = 'Product Sale';
+                        sA = 0;
+                        pA = Math.floor(Math.random() * 150) + 30;
+                        duration = null;
+                    }
+
+                    const hour = Math.floor(Math.random() * 9) + 9;
+                    const minute = Math.floor(Math.random() * 60);
+                    const finalDate = new Date(date);
+                    finalDate.setHours(hour, minute, 0, 0);
+
+                    return {
+                        id: Date.now() + Math.random(),
+                        therapistEmail,
+                        clientName: fakeClients[Math.floor(Math.random() * fakeClients.length)],
+                        service,
+                        serviceAmount: sA,
+                        productAmount: pA,
+                        totalAmount: sA + pA,
+                        duration,
+                        entryType,
+                        isNew: Math.random() > 0.5,
+                        isRebook: Math.random() > 0.6,
+                        date: finalDate.toISOString()
+                    };
+                };
+
                 for(let i=0; i<5; i++) {
-                    const sA = Math.floor(Math.random() * 100) + 80;
-                    const pA = Math.random() > 0.7 ? Math.floor(Math.random() * 40) + 10 : 0;
-                    appState.records.push({
-                        id: Date.now() + i, therapistEmail: appState.user.email, clientName: fakeClients[i % fakeClients.length],
-                        service: SERVICES[Math.floor(Math.random() * SERVICES.length)],
-                        serviceAmount: sA, productAmount: pA, totalAmount: sA + pA,
-                        duration: "1h 15m", entryType: pA > 0 ? 'service_product' : 'service',
-                        isNew: Math.random() > 0.5, isRebook: Math.random() > 0.6, date: now.toISOString()
-                    });
+                    appState.records.push(createRandomRecord(appState.user.email, now));
                 }
-                for(let i=5; i<25; i++) {
+                
+                for(let i=5; i<30; i++) {
                     const randomUser = appState.users[Math.floor(Math.random() * appState.users.length)];
                     const day = Math.floor(Math.random() * 27) + 1;
-                    const recordDate = new Date(now.getFullYear(), now.getMonth(), day);
-                    const sA = Math.floor(Math.random() * 150) + 50;
-                    const pA = Math.random() > 0.8 ? Math.floor(Math.random() * 50) + 10 : 0;
-                    appState.records.push({
-                        id: Date.now() + i, therapistEmail: randomUser.email, clientName: fakeClients[Math.floor(Math.random() * fakeClients.length)],
-                        service: SERVICES[Math.floor(Math.random() * SERVICES.length)],
-                        serviceAmount: sA, productAmount: pA, totalAmount: sA + pA,
-                        duration: "1h", entryType: 'service', isNew: Math.random() > 0.5, isRebook: Math.random() > 0.6, date: recordDate.toISOString()
-                    });
+                    const histDate = new Date(now.getFullYear(), now.getMonth(), day);
+                    appState.records.push(createRandomRecord(randomUser.email, histDate));
                 }
+
                 UI.refreshStats();
                 if(window.currentTab === 'dashboard') UI.renderTodayTable();
                 if(window.currentTab === 'history') UI.renderHistoryTable();
                 if(window.currentTab === 'group') UI.renderGroupStats();
-                UI.showToast(`Seeded test data.`);
-            },
-
-            saveAllConfigs: () => {
-                const rows = document.querySelectorAll('.config-row');
-                rows.forEach(row => {
-                    const email = row.dataset.email;
-                    const userIndex = appState.users.findIndex(u => u.email === email);
-                    if (userIndex !== -1) {
-                        appState.users[userIndex].name = row.querySelector('.input-name').value;
-                        appState.users[userIndex].hourlyRate = parseFloat(row.querySelector('.input-rate').value);
-                        appState.users[userIndex].agreedHours = parseFloat(row.querySelector('.input-hours').value);
-                    }
-                });
-                UI.showToast("Configuration saved.");
+                UI.showToast("Seeded mixed record types.");
             }
         };
 
@@ -308,10 +326,10 @@
                         <!-- MODALS -->
                         <div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 z-[100] hidden flex items-center justify-center p-4">
                             <div class="bg-white rounded-xl shadow-2xl w-full max-w-xs p-6 text-center">
-                                <h3 class="text-lg font-bold mb-4">Delete Entry?</h3>
+                                <h3 class="text-lg font-bold mb-4 text-gray-900 uppercase">Delete Record?</h3>
                                 <div class="flex space-x-3">
-                                    <button onclick="UI.closeDeleteModal()" class="flex-1 py-2 bg-gray-100 rounded-lg text-xs">Cancel</button>
-                                    <button onclick="UI.confirmDelete()" class="flex-1 py-2 bg-red-600 text-white rounded-lg text-xs font-bold">Delete</button>
+                                    <button onclick="UI.closeDeleteModal()" class="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-lg text-[10px] font-black uppercase tracking-wider">Cancel</button>
+                                    <button onclick="UI.confirmDelete()" class="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm">Delete</button>
                                 </div>
                             </div>
                         </div>
@@ -320,13 +338,13 @@
                             <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-y-auto max-h-[90vh]">
                                 <div class="p-4 border-b flex justify-between items-center bg-gray-50">
                                     <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider">New Performance Entry</h3>
-                                    <button onclick="UI.closeEntryModal()" class="text-gray-400 hover:text-black"><i class="fas fa-times"></i></button>
+                                    <button onclick="UI.closeEntryModal()" class="text-gray-400 hover:text-black transition-colors"><i class="fas fa-times"></i></button>
                                 </div>
                                 <form id="dataEntryForm" class="p-6 space-y-4">
                                     <div class="flex justify-around border-b pb-4">
-                                        <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="service" checked onchange="UI.toggleEntryFields()"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-500">Service</span></label>
+                                        <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="service" checked onchange="UI.toggleEntryFields()"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-500">Service Only</span></label>
                                         <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="service_product" onchange="UI.toggleEntryFields()"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-500">Svc+Prod</span></label>
-                                        <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="product" onchange="UI.toggleEntryFields()"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-500">Product</span></label>
+                                        <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="product" onchange="UI.toggleEntryFields()"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-500">Product Only</span></label>
                                     </div>
                                     <div class="grid grid-cols-2 gap-3">
                                         <div><label class="text-[10px] font-black uppercase text-gray-400 tracking-widest">Date</label><input type="date" name="entryDate" required class="w-full rounded border p-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none shadow-sm"></div>
@@ -349,9 +367,9 @@
                                 <h3 class="text-xs font-black uppercase tracking-widest mb-4 text-gray-400">Edit Record</h3>
                                 <form id="editForm" class="p-6 space-y-4">
                                     <div class="flex justify-around border-b pb-4">
-                                        <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="editEntryType" value="service"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-400">Service</span></label>
+                                        <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="editEntryType" value="service"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-400">Service Only</span></label>
                                         <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="editEntryType" value="service_product"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-400">Svc+Prod</span></label>
-                                        <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="editEntryType" value="product"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-400">Product</span></label>
+                                        <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="editEntryType" value="product"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-400">Product Only</span></label>
                                     </div>
                                     <div class="grid grid-cols-2 gap-3">
                                         <div><label class="text-[10px] font-bold uppercase text-gray-400">Date</label><input type="date" name="editDate" required class="w-full border rounded p-2 text-xs"></div>
@@ -366,7 +384,7 @@
                                         <select name="editDurationHours" class="w-1/2 rounded border p-2 text-xs"><option value="0">0h</option><option value="1">1h</option><option value="2">2h</option></select>
                                         <select name="editDurationMinutes" class="w-1/2 rounded border p-2 text-xs"><option value="0">0m</option><option value="15">15m</option><option value="30">30m</option></select>
                                     </div>
-                                    <div class="flex space-x-2 pt-2"><button type="button" onclick="UI.closeEditModal()" class="flex-1 py-2 bg-gray-100 rounded text-[10px] font-black uppercase">Cancel</button><button type="submit" class="flex-1 py-2 bg-teal-600 text-white rounded text-[10px] font-black uppercase">Update</button></div>
+                                    <div class="flex space-x-2 pt-2"><button type="button" onclick="UI.closeEditModal()" class="flex-1 py-2 bg-gray-100 rounded text-[10px] font-black uppercase tracking-wider">Cancel</button><button type="submit" class="flex-1 py-2 bg-black text-white rounded text-[10px] font-black uppercase tracking-wider">Update</button></div>
                                 </form>
                             </div>
                         </div>
@@ -374,12 +392,12 @@
                         <!-- HEADER -->
                         <header class="bg-white shadow-sm sticky top-0 z-40 p-3 flex justify-between items-center border-b border-gray-100">
                             <div class="flex flex-col">
-                                <h1 class="text-xl font-black tracking-tighter leading-none">TRB<span class="text-teal-500">.</span></h1>
+                                <h1 class="text-xl font-black tracking-tighter leading-none">Totally RAD Beauty</h1>
                                 <span class="text-[8px] font-black text-gray-300 uppercase tracking-widest mt-1">v${APP_VERSION}</span>
                             </div>
                             <div class="flex space-x-2 items-center">
                                 <button onclick="Logic.generateFakeData()" class="bg-gray-50 text-[9px] font-black uppercase border border-gray-200 rounded px-2.5 py-2 hover:bg-gray-100 transition-colors shadow-sm">Seed Data</button>
-                                <select onchange="Logic.switchUser(this.value)" class="bg-gray-50 text-[9px] font-black uppercase border border-gray-200 rounded px-2 py-1.5 focus:ring-0 shadow-sm">
+                                <select onchange="Logic.switchUser(this.value)" class="bg-gray-50 text-[9px] font-black uppercase border border-gray-200 rounded px-2 py-1.5 focus:ring-0">
                                     ${appState.users.map(u => `<option value="${u.email}" ${appState.user.email === u.email ? 'selected' : ''}>${u.name}</option>`).join('')}
                                 </select>
                                 <button onclick="UI.openEntryModal()" class="bg-teal-600 text-white px-3 py-2 rounded-lg shadow-md text-[9px] font-black uppercase tracking-wider hover:bg-teal-700 transition-all active:scale-95 flex items-center">
@@ -388,29 +406,34 @@
                             </div>
                         </header>
 
-                        <!-- MAIN CONTENT -->
+                        <!-- MAIN CONTENT AREA -->
                         <main class="flex-1 overflow-y-auto pb-24 p-4" id="main-content"></main>
 
-                        <!-- FOOTER NAVIGATION -->
-                        <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-50 flex justify-around items-center px-2 py-2">
-                            <button onclick="UI.switchTab('dashboard')" id="nav-dashboard" class="flex flex-col items-center justify-center w-1/4 transition-all py-1">
-                                <i class="fas fa-chart-line text-lg mb-1"></i>
-                                <span class="text-[9px] font-black uppercase tracking-tight">Me</span>
+                        <!-- DARK FOOTER NAVIGATION -->
+                        <nav class="fixed bottom-0 left-0 right-0 bg-gray-900 shadow-[0_-8px_20px_rgba(0,0,0,0.2)] z-50 flex justify-around items-center px-2 pt-3 pb-5">
+                            <button onclick="UI.switchTab('dashboard')" id="nav-dashboard" class="flex flex-col items-center justify-center w-1/4 transition-all py-1 active:scale-90">
+                                <i class="fas fa-chart-line text-xl mb-1.5"></i>
+                                <span class="text-[9px] font-black uppercase tracking-widest">Me</span>
                             </button>
-                            <button onclick="UI.switchTab('history')" id="nav-history" class="flex flex-col items-center justify-center w-1/4 transition-all py-1">
-                                <i class="fas fa-history text-lg mb-1"></i>
-                                <span class="text-[9px] font-black uppercase tracking-tight">History</span>
+                            <button onclick="UI.switchTab('history')" id="nav-history" class="flex flex-col items-center justify-center w-1/4 transition-all py-1 active:scale-90">
+                                <i class="fas fa-history text-xl mb-1.5"></i>
+                                <span class="text-[9px] font-black uppercase tracking-widest">History</span>
                             </button>
-                            <button onclick="UI.switchTab('group')" id="nav-group" class="flex flex-col items-center justify-center w-1/4 transition-all py-1">
-                                <i class="fas fa-people-group text-lg mb-1"></i>
-                                <span class="text-[9px] font-black uppercase tracking-tight">Group</span>
+                            <button onclick="UI.switchTab('group')" id="nav-group" class="flex flex-col items-center justify-center w-1/4 transition-all py-1 active:scale-90">
+                                <i class="fas fa-people-group text-xl mb-1.5"></i>
+                                <span class="text-[9px] font-black uppercase tracking-widest">Group</span>
                             </button>
-                            ${isAdmin ? `<button onclick="UI.switchTab('config')" id="nav-config" class="flex flex-col items-center justify-center w-1/4 transition-all py-1"><i class="fas fa-sliders text-lg mb-1"></i><span class="text-[9px] font-black uppercase tracking-tight">Setup</span></button>` : ''}
+                            ${isAdmin ? `
+                            <button onclick="UI.switchTab('config')" id="nav-config" class="flex flex-col items-center justify-center w-1/4 transition-all py-1 active:scale-90">
+                                <i class="fas fa-sliders text-xl mb-1.5"></i>
+                                <span class="text-[9px] font-black uppercase tracking-widest">Setup</span>
+                            </button>
+                            ` : ''}
                         </nav>
                     </div>
                 `;
                 
-                // Form submissions
+                // Form setup
                 document.getElementById('dataEntryForm').addEventListener('submit', (e) => {
                     e.preventDefault();
                     const fd = new FormData(e.target);
@@ -444,9 +467,8 @@
                 window.currentTab = tabName;
                 document.querySelectorAll('nav button').forEach(b => {
                     const isActive = b.id === `nav-${tabName}`;
-                    b.classList.toggle('text-teal-600', isActive);
-                    b.classList.toggle('text-gray-300', !isActive);
-                    if (isActive) b.classList.add('scale-110'); else b.classList.remove('scale-110');
+                    b.classList.toggle('text-teal-400', isActive);
+                    b.classList.toggle('text-gray-500', !isActive);
                 });
                 const main = document.getElementById('main-content');
                 if (tabName === 'dashboard') {
@@ -471,6 +493,7 @@
                 const maxVal = Math.max(m.totalRevenue, m.monthlyTarget, 1);
                 const ah = (m.totalRevenue / maxVal) * 100;
                 const th = (m.monthlyTarget / maxVal) * 100;
+                
                 document.getElementById('stats-container').innerHTML = `
                     <div class="bg-white p-4 rounded-2xl border border-gray-100 mb-4 shadow-sm">
                         <div class="flex justify-between items-center mb-6">
@@ -481,72 +504,111 @@
                                 <button onclick="Logic.changeMonth(1)" class="p-1"><i class="fas fa-chevron-right text-[10px]"></i></button>
                             </div>
                         </div>
-                        <div class="flex justify-center items-end space-x-12 h-40 border-b border-gray-50 pb-2 mb-4">
-                            <div class="flex flex-col items-center w-16 h-full justify-end">
-                                <span class="text-[9px] font-black text-teal-600 mb-1">${m.percentageToTarget.toFixed(0)}%</span>
-                                <span class="text-[10px] font-black text-teal-600 mb-1">$${m.totalRevenue.toLocaleString()}</span>
-                                <div style="height: ${ah}%; min-height:4px" class="w-12 bg-teal-500 rounded-t shadow-md transition-all duration-1000"></div>
-                                <span class="mt-2 text-[8px] font-black text-gray-300 uppercase">Actual</span>
+                        <div class="flex justify-center items-end space-x-6 h-64 border-b border-gray-50 pb-2 mb-4 relative">
+                            <!-- Actual Bar (Labels to the LEFT) -->
+                            <div class="flex flex-col items-center w-12 h-full justify-end relative">
+                                <div class="absolute right-full mr-3 bottom-[ah%] flex flex-col items-end whitespace-nowrap" style="bottom: ${ah}%">
+                                    <span class="text-[10px] font-black text-teal-600">${m.percentageToTarget.toFixed(0)}%</span>
+                                    <span class="text-[10px] font-black text-teal-600">$${m.totalRevenue.toLocaleString()}</span>
+                                </div>
+                                <div style="height: ${ah}%;" class="w-full bg-teal-500 rounded-t shadow-md transition-all duration-1000"></div>
+                                <span class="mt-3 text-[10px] font-black text-gray-400 uppercase">Actual</span>
                             </div>
-                            <div class="flex flex-col items-center w-16 h-full justify-end">
-                                <span class="text-[10px] font-black text-blue-600 mb-1">$${m.monthlyTarget.toLocaleString()}</span>
-                                <div style="height: ${th}%; min-height:4px" class="w-12 bg-blue-100 border-t border-x border-blue-100 rounded-t shadow-sm transition-all duration-1000"></div>
-                                <span class="mt-2 text-[8px] font-black text-gray-300 uppercase tracking-widest">Goal</span>
+
+                            <!-- Spacer -->
+                            <div class="w-1"></div>
+
+                            <!-- Target Bar (Labels to the RIGHT) -->
+                            <div class="flex flex-col items-center w-12 h-full justify-end relative">
+                                <div class="absolute left-full ml-3 bottom-[th%] flex flex-col items-start whitespace-nowrap" style="bottom: ${th}%">
+                                    <span class="text-[10px] font-black text-blue-600">$${m.monthlyTarget.toLocaleString()}</span>
+                                </div>
+                                <div style="height: ${th}%;" class="w-full bg-blue-50 border-t border-x border-blue-100 rounded-t shadow-sm transition-all duration-1000"></div>
+                                <span class="mt-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Goal</span>
                             </div>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-3 mb-4">
-                        <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm"><p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Total</p><p class="text-lg font-black text-gray-900">$${m.totalRevenue.toLocaleString()}</p></div>
-                        <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm"><p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Target</p><p class="text-lg font-black text-gray-900">$${m.monthlyTarget.toLocaleString()}</p></div>
-                        <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm"><p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Progress</p><p class="text-lg font-black text-teal-600">${m.percentageToTarget.toFixed(1)}%</p></div>
-                        <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm"><p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Rebook</p><p class="text-lg font-black text-purple-600">${m.rebookingRate.toFixed(1)}%</p></div>
+                        <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                            <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Revenue</p>
+                            <p class="text-lg font-black text-gray-900">$${m.totalRevenue.toLocaleString()}</p>
+                            <p class="text-[8px] font-bold text-gray-400 uppercase mt-1">Svc: $${m.serviceRevenue} | Prod: $${m.productRevenue}</p>
+                        </div>
+                        <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                            <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Rebooking Rate</p>
+                            <p class="text-lg font-black text-purple-600">${m.rebookingRate.toFixed(1)}%</p>
+                            <p class="text-[8px] font-bold text-gray-400 uppercase mt-1">${m.rebookedClients} of ${m.totalClients} Clients rebooked</p>
+                        </div>
                     </div>`;
             },
 
             renderGroupStats: () => {
                 const m = Logic.getGroupMetrics(appState.currentDate);
                 const cm = appState.currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-                const ah = Math.min((m.totalRevenue / Math.max(m.totalRevenue, m.monthlyTarget, 1)) * 100, 100);
+                const maxVal = Math.max(m.totalRevenue, m.monthlyTarget, 1);
+                const ah = (m.totalRevenue / maxVal) * 100;
+                const th = (m.monthlyTarget / maxVal) * 100;
                 const cols = ['bg-teal-400', 'bg-sky-400', 'bg-violet-400', 'bg-rose-400', 'bg-amber-400'];
                 const segs = m.individualStats.map((s, i) => s.revenue <= 0 ? '' : `<div style="height: ${(s.revenue/m.totalRevenue)*100}%" class="${cols[i%cols.length]} border-b border-white/20"></div>`).join('');
-                const legs = m.individualStats.map((s, i) => `<div class="flex items-center text-[8px] text-gray-600 font-black uppercase tracking-tight"><span class="w-1.5 h-1.5 rounded-full ${cols[i % cols.length]} mr-1"></span>${s.name}</div>`).join('');
+                const legs = m.individualStats.map((s, i) => `<div class="flex items-center text-[9px] text-gray-600 font-bold"><span class="w-2.5 h-2.5 rounded-full ${cols[i % cols.length]} mr-1 shadow-sm"></span><span>${s.name}</span></div>`).join('');
                 
                 document.getElementById('group-stats-container').innerHTML = `
-                    <div class="bg-white p-4 rounded-2xl border border-gray-100 mb-4 shadow-sm">
-                        <h3 class="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-4">Team Performance</h3>
-                        <div class="flex justify-center items-end space-x-16 h-48 border-b border-gray-50 pb-2 mb-4">
-                            <div class="flex flex-col items-center w-16 h-full justify-end">
-                                <span class="text-[10px] font-black text-teal-600 mb-1">$${m.totalRevenue.toLocaleString()}</span>
-                                <div style="height: ${ah}%;" class="w-12 rounded-t flex flex-col-reverse overflow-hidden shadow-md">${segs}</div>
-                                <span class="mt-2 text-[8px] font-black text-gray-300 uppercase tracking-widest">Total</span>
+                    <div class="bg-white p-4 rounded-xl border border-gray-100 mb-4 shadow-sm">
+                        <h3 class="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-4">Team Performance Overview</h3>
+                        <div class="flex justify-center items-end space-x-8 h-64 border-b border-gray-50 pb-2 mb-4 relative">
+                            <!-- Actual Team Bar (Labels LEFT) -->
+                            <div class="flex flex-col items-center w-14 h-full justify-end relative">
+                                <div class="absolute right-full mr-3 bottom-[ah%] flex flex-col items-end whitespace-nowrap" style="bottom: ${ah}%">
+                                    <span class="text-[10px] font-bold text-teal-600">${m.percentageToTarget.toFixed(1)}%</span>
+                                    <span class="text-[10px] font-bold text-teal-600">$${m.totalRevenue.toLocaleString()}</span>
+                                </div>
+                                <div style="height: ${ah}%;" class="w-full rounded-t-lg overflow-hidden flex flex-col-reverse shadow-md transition-all duration-1000">${segs}</div>
+                                <span class="mt-3 text-[10px] font-bold text-gray-400 uppercase">Actual</span>
                             </div>
-                            <div class="flex flex-col items-center w-16 h-full justify-end">
-                                <span class="text-[10px] font-black text-blue-600 mb-1">$${m.monthlyTarget.toLocaleString()}</span>
-                                <div style="height:100%" class="w-12 bg-blue-50 border-t border-x border-blue-100 rounded-t shadow-sm"></div>
-                                <span class="mt-2 text-[8px] font-black text-gray-300 uppercase tracking-widest">Team Target</span>
+
+                            <!-- Target Team Bar (Labels RIGHT) -->
+                            <div class="flex flex-col items-center w-14 h-full justify-end relative">
+                                <div class="absolute left-full ml-3 bottom-[th%] flex flex-col items-start whitespace-nowrap" style="bottom: ${th}%">
+                                    <span class="text-[10px] font-bold text-blue-600">$${m.monthlyTarget.toLocaleString()}</span>
+                                </div>
+                                <div style="height:100%" class="w-full bg-blue-50 border-t border-x border-blue-100 rounded-t shadow-sm transition-all duration-1000"></div>
+                                <span class="mt-3 text-[10px] font-bold text-gray-400 uppercase">Team Target</span>
                             </div>
                         </div>
-                        <div class="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mt-3">${legs}</div>
+                        <div class="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-4 pt-4 border-t border-gray-50">${legs}</div>
                     </div>
 
-                    <div class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm overflow-x-auto mb-4">
-                        <h3 class="text-sm font-bold mb-4">Therapist Breakdown</h3>
+                    <div class="grid grid-cols-2 gap-3 mb-4">
+                        <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                            <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Team Revenue</p>
+                            <p class="text-lg font-black text-gray-900">$${m.totalRevenue.toLocaleString()}</p>
+                            <p class="text-[8px] font-bold text-gray-400 uppercase mt-1">Svc: $${m.serviceRevenue} | Prod: $${m.productRevenue}</p>
+                        </div>
+                        <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                            <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Rebooking Rate</p>
+                            <p class="text-lg font-black text-purple-600">${m.rebookingRate.toFixed(1)}%</p>
+                            <p class="text-[8px] font-bold text-gray-400 uppercase mt-1">${m.rebookedClients} of ${m.totalClients} Clients rebooked</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto p-4 mb-4">
+                        <h3 class="text-sm font-bold text-gray-900 mb-4">Therapist Breakdown</h3>
                         <table class="min-w-full">
-                            <thead class="bg-gray-50 border-b">
-                                <tr class="text-[9px] text-gray-400 uppercase tracking-widest font-black">
+                            <thead class="bg-gray-50">
+                                <tr class="text-[10px] text-gray-400 uppercase font-black border-b border-gray-100">
                                     <th class="text-left py-3 px-2">Therapist</th>
-                                    <th class="text-right py-3 px-2">Total Rev</th>
-                                    <th class="text-right py-3 px-2">Svc ($)</th>
-                                    <th class="text-right py-3 px-2">Prod ($)</th>
-                                    <th class="text-right py-3 px-2">Target %</th>
-                                    <th class="text-right py-3 px-2">Rebook %</th>
+                                    <th class="text-right py-3 px-2 whitespace-nowrap">Total Rev</th>
+                                    <th class="text-right py-3 px-2 whitespace-nowrap">Svc ($)</th>
+                                    <th class="text-right py-3 px-2 whitespace-nowrap">Prod ($)</th>
+                                    <th class="text-right py-3 px-2 whitespace-nowrap">Target %</th>
+                                    <th class="text-right py-3 px-2 whitespace-nowrap">Rebook %</th>
                                     <th class="text-center py-3 px-2">Clients</th>
                                     <th class="text-center py-3 px-2">Rebooked</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100">
                                 ${m.individualStats.map(s => `
-                                    <tr class="hover:bg-gray-50/50">
+                                    <tr>
                                         <td class="py-3 px-2 text-xs font-bold text-gray-900">${s.name}</td>
                                         <td class="py-3 px-2 text-xs text-right font-bold text-gray-900">$${s.revenue.toLocaleString()}</td>
                                         <td class="py-3 px-2 text-xs text-right text-gray-400">$${s.serviceRevenue.toLocaleString()}</td>
@@ -569,41 +631,57 @@
                     const rd = new Date(r.date); rd.setHours(0,0,0,0);
                     return rd.getTime() === today.getTime() && r.therapistEmail === appState.user.email;
                 }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
                 cont.innerHTML = `
                     <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-                        <h3 class="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-4">Recent Activity</h3>
+                        <h3 class="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-4">Today's Activity Log</h3>
                         <div class="overflow-x-auto">
                             <table class="min-w-full">
-                                <thead class="bg-gray-50 border-b">
+                                <thead class="border-b bg-gray-50/50">
                                     <tr class="text-[8px] font-black text-gray-400 uppercase tracking-tighter">
-                                        <th class="text-left py-1.5 px-1 w-12">Time</th>
-                                        <th class="text-left py-1.5 px-1">Client/Service</th>
-                                        <th class="text-right py-1.5 px-1">Total</th>
-                                        <th class="text-center py-1.5 px-1">Actions</th>
+                                        <th class="text-left py-2 px-2 w-16">Date</th>
+                                        <th class="text-left py-2 px-2">Client & Service</th>
+                                        <th class="text-center py-2 px-1 w-12">New</th>
+                                        <th class="text-center py-2 px-1 w-12">Rbk</th>
+                                        <th class="text-right py-2 px-2">Total</th>
+                                        <th class="text-center py-2 px-2 w-20">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-gray-50">${records.length === 0 ? '<tr><td colspan="4" class="py-6 text-center text-gray-400 text-[10px] italic">No activity yet.</td></tr>' : records.map(r => `
+                                <tbody class="divide-y divide-gray-100">
+                                    ${records.length === 0 ? '<tr><td colspan="6" class="py-12 text-center text-gray-300 text-xs italic">No entries for today.</td></tr>' : records.map(r => `
                                     <tr class="hover:bg-gray-50/50">
-                                        <td class="py-2 px-1 text-[9px] font-black text-gray-400 uppercase">${new Date(r.date).toLocaleTimeString([], {hour:'numeric', minute:'2-digit', hour12:true})}</td>
-                                        <td class="py-2 px-1">
+                                        <td class="py-3 px-2 align-top">
+                                            <span class="text-[9px] font-black text-gray-400 uppercase leading-none">
+                                                ${new Date(r.date).toLocaleDateString([], {month:'numeric', day:'numeric'})}
+                                            </span>
+                                        </td>
+                                        <td class="py-3 px-2 align-top">
                                             <div class="flex flex-col">
                                                 <span class="text-[11px] font-bold text-gray-800 leading-tight">${r.clientName}</span>
-                                                <span class="text-[9px] text-gray-500 truncate max-w-[140px]">${r.service}</span>
-                                                <div class="flex items-center mt-0.5 space-x-1">
-                                                    ${r.duration ? `<span class="text-[8px] font-bold text-gray-300"><i class="far fa-clock mr-0.5"></i>${r.duration}</span>` : ''}
-                                                    ${r.productAmount > 0 ? `<span class="text-[8px] font-bold text-blue-400"><i class="fas fa-shopping-bag mr-0.5"></i>$${r.productAmount}P</span>` : ''}
-                                                    ${r.isRebook ? `<span class="text-[7px] font-black bg-purple-50 text-purple-400 px-1 rounded uppercase">Rebook</span>` : ''}
-                                                </div>
+                                                <span class="text-[9px] text-gray-400 font-medium truncate max-w-[120px]">${r.service}</span>
+                                                ${r.duration ? `<span class="text-[8px] font-bold text-gray-300"><i class="far fa-clock mr-0.5"></i>${r.duration}</span>` : ''}
                                             </div>
                                         </td>
-                                        <td class="py-2 px-1 text-[11px] font-black text-right text-gray-900">$${r.totalAmount.toFixed(2)}</td>
-                                        <td class="py-2 px-1">
-                                            <div class="flex justify-center space-x-2">
-                                                <button onclick="UI.openEditModal(${r.id})" class="text-gray-200 hover:text-teal-600 transition-colors p-1"><i class="fas fa-pencil-alt text-[9px]"></i></button>
-                                                <button onclick="UI.openDeleteModal(${r.id})" class="text-gray-100 hover:text-red-500 transition-colors p-1"><i class="fas fa-trash text-[9px]"></i></button>
+                                        <td class="py-3 px-1 align-top text-center">
+                                            ${r.isNew ? '<span class="text-[8px] font-black bg-green-50 text-green-500 px-1 py-0.5 rounded border border-green-100">NEW</span>' : '<span class="text-gray-100 text-[10px]">—</span>'}
+                                        </td>
+                                        <td class="py-3 px-1 align-top text-center">
+                                            ${r.isRebook ? '<span class="text-[8px] font-black bg-purple-50 text-purple-500 px-1 py-0.5 rounded border border-purple-100">REBOOKED</span>' : '<span class="text-gray-100 text-[10px]">—</span>'}
+                                        </td>
+                                        <td class="py-3 px-2 align-top text-right">
+                                            <div class="flex flex-col">
+                                                <span class="text-[11px] font-black text-gray-900 leading-none">$${r.totalAmount.toFixed(2)}</span>
+                                                ${r.productAmount > 0 ? `<span class="text-[8px] font-bold text-blue-500 mt-1 leading-none">Incl. $${r.productAmount} P</span>` : ''}
                                             </div>
                                         </td>
-                                    </tr>`).join('')}</tbody>
+                                        <td class="py-3 px-2 align-top text-center">
+                                            <div class="flex items-center justify-center space-x-2">
+                                                <button onclick="UI.openEditModal(${r.id})" class="text-gray-300 hover:text-teal-600 transition-colors p-1"><i class="fas fa-pencil-alt text-[10px]"></i></button>
+                                                <button onclick="UI.openDeleteModal(${r.id})" class="text-gray-200 hover:text-red-500 transition-colors p-1"><i class="fas fa-trash text-[10px]"></i></button>
+                                            </div>
+                                        </td>
+                                    </tr>`).join('')}
+                                </tbody>
                             </table>
                         </div>
                     </div>`;
@@ -616,37 +694,61 @@
                 const records = appState.records.filter(r => {
                     const rd = new Date(r.date); return rd.getMonth() === tm && rd.getFullYear() === ty && r.therapistEmail === appState.user.email;
                 }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
                 cont.innerHTML = `
                     <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-[10px] font-black text-gray-300 uppercase tracking-widest">${cm} Log</h3>
+                        <div class="flex justify-between items-center mb-6">
+                            <div class="flex flex-col">
+                                <h3 class="text-[10px] font-black text-gray-300 uppercase tracking-widest leading-none mb-1">Monthly History Log</h3>
+                                <span class="text-sm font-bold text-gray-900">${cm}</span>
+                            </div>
                             <div class="flex space-x-1">
-                                <button onclick="Logic.changeMonth(-1)" class="p-1.5 bg-gray-50 rounded-lg text-gray-400"><i class="fas fa-chevron-left text-[10px]"></i></button>
-                                <button onclick="Logic.changeMonth(1)" class="p-1.5 bg-gray-50 rounded-lg text-gray-400"><i class="fas fa-chevron-right text-[10px]"></i></button>
+                                <button onclick="Logic.changeMonth(-1)" class="p-2 bg-gray-50 rounded-xl text-gray-500 hover:bg-gray-100 transition-all"><i class="fas fa-chevron-left text-xs"></i></button>
+                                <button onclick="Logic.changeMonth(1)" class="p-2 bg-gray-50 rounded-xl text-gray-500 hover:bg-gray-100 transition-all"><i class="fas fa-chevron-right text-xs"></i></button>
                             </div>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="min-w-full">
-                                <thead class="bg-gray-50 border-b">
+                                <thead class="border-b bg-gray-50/50">
                                     <tr class="text-[8px] font-black text-gray-400 uppercase tracking-tighter">
-                                        <th class="text-left py-1.5 px-1 w-12">Date</th>
-                                        <th class="text-left py-1.5 px-1">Client/Info</th>
-                                        <th class="text-right py-1.5 px-1">Total</th>
-                                        <th class="text-center py-1.5 px-1">Edit</th>
+                                        <th class="text-left py-2 px-2 w-16">Date</th>
+                                        <th class="text-left py-2 px-2">Client & Service</th>
+                                        <th class="text-center py-2 px-1 w-12">New</th>
+                                        <th class="text-center py-2 px-1 w-12">Rbk</th>
+                                        <th class="text-right py-2 px-2">Total</th>
+                                        <th class="text-center py-2 px-2 w-20">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-gray-50">${records.length === 0 ? '<tr><td colspan="4" class="py-10 text-center text-gray-400 text-xs italic">No historical data.</td></tr>' : records.map(r => `
-                                    <tr>
-                                        <td class="py-2 px-1 text-[9px] font-black text-gray-300">${new Date(r.date).toLocaleDateString([], { month: 'numeric', day: 'numeric' })}</td>
-                                        <td class="py-2 px-1">
+                                <tbody class="divide-y divide-gray-100">
+                                    ${records.length === 0 ? '<tr><td colspan="6" class="py-12 text-center text-gray-300 text-xs italic">No data logged for this period.</td></tr>' : records.map(r => `
+                                    <tr class="hover:bg-gray-50/50">
+                                        <td class="py-3 px-2 align-top text-[10px] font-black text-gray-400 uppercase">${new Date(r.date).toLocaleDateString([], { month: 'numeric', day: 'numeric' })}</td>
+                                        <td class="py-3 px-2 align-top">
                                             <div class="flex flex-col">
                                                 <span class="text-[11px] font-bold text-gray-800 leading-tight">${r.clientName}</span>
-                                                <span class="text-[9px] text-gray-400 truncate max-w-[120px]">${r.service}</span>
+                                                <span class="text-[9px] text-gray-400 font-medium truncate max-w-[150px]">${r.service}</span>
                                             </div>
                                         </td>
-                                        <td class="py-2 px-1 text-[11px] font-black text-right text-gray-900">$${r.totalAmount.toFixed(2)}</td>
-                                        <td class="py-2 px-1 text-center"><button onclick="UI.openEditModal(${r.id})" class="text-gray-200 hover:text-teal-600 transition-colors"><i class="fas fa-pencil-alt text-[10px]"></i></button></td>
-                                    </tr>`).join('')}</tbody>
+                                        <td class="py-3 px-1 align-top text-center">
+                                            ${r.isNew ? '<span class="text-[8px] font-black bg-green-50 text-green-500 px-1 py-0.5 rounded border border-green-100">NEW</span>' : '<span class="text-gray-100 text-[10px]">—</span>'}
+                                        </td>
+                                        <td class="py-3 px-1 align-top text-center">
+                                            ${r.isRebook ? '<span class="text-[8px] font-black bg-purple-50 text-purple-500 px-1 py-0.5 rounded border border-purple-100">REBOOKED</span>' : '<span class="text-gray-100 text-[10px]">—</span>'}
+                                        </td>
+                                        <td class="py-3 px-2 align-top text-right">
+                                            <div class="flex flex-col">
+                                                <span class="text-[11px] font-black text-gray-900 leading-none">$${r.totalAmount.toFixed(2)}</span>
+                                                ${r.productAmount > 0 ? `<span class="text-[8px] font-bold text-blue-500 mt-1 leading-none">Incl. $${r.productAmount} P</span>` : ''}
+                                            </div>
+                                        </td>
+                                        <td class="py-3 px-2 align-top text-center">
+                                            <div class="flex items-center justify-center space-x-2">
+                                                <button onclick="UI.openEditModal(${r.id})" class="text-gray-300 hover:text-teal-600 transition-colors p-1"><i class="fas fa-pencil-alt text-[10px]"></i></button>
+                                                <button onclick="UI.openDeleteModal(${r.id})" class="text-gray-200 hover:text-red-500 transition-colors p-1"><i class="fas fa-trash text-[10px]"></i></button>
+                                            </div>
+                                        </td>
+                                    </tr>`).join('')}
+                                </tbody>
                             </table>
                         </div>
                     </div>`;
@@ -656,14 +758,14 @@
                 const cont = document.getElementById('config-container'); if (!cont) return;
                 cont.innerHTML = `
                     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                        <div class="p-4 border-b bg-gray-50 flex justify-between items-center"><h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Staff Configuration</h3><button onclick="Logic.saveAllConfigs()" class="bg-black text-white px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest shadow hover:bg-gray-800 active:scale-95 transition-all">Save All</button></div>
+                        <div class="p-4 border-b bg-gray-50 flex justify-between items-center"><h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Staff Configuration</h3><button onclick="Logic.saveAllConfigs()" class="bg-black text-white px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest shadow hover:bg-gray-800 transition-all">Save All</button></div>
                         <div class="p-4 space-y-4 divide-y divide-gray-50">${appState.users.map(u => `
                             <div class="config-row space-y-2 py-4 first:pt-0" data-email="${u.email}">
                                 <div class="flex justify-between items-center mb-2"><span class="text-[10px] font-black text-gray-800 uppercase tracking-tighter">${u.email}</span><span class="text-[8px] bg-black text-white px-2 py-0.5 rounded-full uppercase font-black">${u.role}</span></div>
                                 <div class="grid grid-cols-3 gap-2">
-                                    <div class="flex flex-col"><label class="text-[7px] font-black text-gray-400 uppercase mb-1">Display Name</label><input type="text" value="${u.name}" class="input-name border rounded p-1.5 text-xs"></div>
-                                    <div class="flex flex-col"><label class="text-[7px] font-black text-gray-400 uppercase mb-1">Hourly Rate ($)</label><input type="number" value="${u.hourlyRate}" class="input-rate border rounded p-1.5 text-xs"></div>
-                                    <div class="flex flex-col"><label class="text-[7px] font-black text-gray-400 uppercase mb-1">Weekly Hours</label><input type="number" value="${u.agreedHours}" class="input-hours border rounded p-1.5 text-xs"></div>
+                                    <div class="flex flex-col"><label class="text-[7px] font-black text-gray-400 uppercase mb-0.5 tracking-tighter">Display Name</label><input type="text" value="${u.name}" class="input-name border rounded p-1.5 text-xs focus:ring-1 focus:ring-teal-500 shadow-sm outline-none"></div>
+                                    <div class="flex flex-col"><label class="text-[7px] font-black text-gray-400 uppercase mb-0.5 tracking-tighter">Hourly Rate ($)</label><input type="number" value="${u.hourlyRate}" class="input-rate border rounded p-1.5 text-xs focus:ring-1 focus:ring-teal-500 shadow-sm outline-none"></div>
+                                    <div class="flex flex-col"><label class="text-[7px] font-black text-gray-400 uppercase mb-0.5 tracking-tighter">Weekly Hours</label><input type="number" value="${u.agreedHours}" class="input-hours border rounded p-1.5 text-xs focus:ring-1 focus:ring-teal-500 shadow-sm outline-none"></div>
                                 </div>
                             </div>`).join('')}</div>
                     </div>`;
@@ -678,7 +780,6 @@
         ::-webkit-scrollbar { display: none; }
         input, select, button { outline: none !important; }
         .font-inter { font-family: 'Inter', sans-serif; }
-        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     </style>
 </head>
 <body><div id="app"></div></body>
