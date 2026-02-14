@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>TRB Tracker</title>
+    <meta name="description" content="Basic starting page for TRB Tracker" />
+    <style>
+        :root { --bg:#f5f7fb; --card:#fff; --accent:#0b74de; --muted:#6b7280; font-family:Inter,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+        html,body { height:100%; margin:0; background:var(--bg); color:#111; }
+        .container { max-width:960px; margin:48px auto; padding:24px; }
+        header { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:24px; }
+        h1 { font-size:1.25rem; margin:0; }
+        nav a { color:var(--accent); text-decoration:none; margin-left:12px; font-weight:600; }
+        main { background:var(--card); border-radius:12px; padding:24px; box-shadow:0 6px 18px rgba(12,20,40,0.06); }
+        .lead { color:var(--muted); margin:0 0 16px; }
+        .grid { display:grid; grid-template-columns:1fr 280px; gap:16px; }
+        .card { background:#fff; border-radius:8px; padding:16px; box-shadow:0 2px 8px rgba(12,20,40,0.04); }
+        footer { margin-top:20px; color:var(--muted); font-size:0.85rem; text-align:center; }
+        @media (max-width:700px){ .grid{grid-template-columns:1fr} }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>TRB Tracker</h1>
+            <nav aria-label="Main">
+                <a href="#">Home</a>
+                <a href="#">Log</a>
+                <a href="#">Settings</a>
+            </nav>
+        </header>
+
+        <main>
+            <p class="lead">Simple starter page. Expand sections below to build your tracker UI.</p>
+
+            <div class="grid">
+                <section class="card" aria-labelledby="overview-title">
+                    <h2 id="overview-title" style="margin-top:0;font-size:1rem;">Overview</h2>
+                    <p style="color:var(--muted);margin:8px 0 0;">Recent activity, stats, or quick actions go here.</p>
+                </section>
+
+                <aside class="card" aria-labelledby="actions-title">
+                    <h3 id="actions-title" style="margin-top:0;font-size:0.95rem;">Quick Actions</h3>
+                    <button style="display:block;width:100%;margin-top:12px;padding:10px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;">
+                        New Entry
+                    </button>
+                </aside>
+            </div>
+
+            <section class="card" style="margin-top:16px;">
+                <h3 style="margin-top:0;font-size:0.95rem;">Notes</h3>
+                <p style="color:var(--muted);margin:8px 0 0;">Add content and components as your project grows.</p>
+            </section>
+        </main>
+
+        <footer>
+            © <span id="year"></span> TRB Tracker — Built with HTML
+        </footer>
+    </div>
+
+    <script>
+        // small helpers
+        document.getElementById('year').textContent = new Date().getFullYear();
+    </script>
+</body>
+</html>
