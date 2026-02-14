@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Totally Rad Beauty | Clinic Dashboard v3.2</title>
+    <title>Totally RAD Beauty | Clinic Dashboard v3.5</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -22,7 +22,7 @@
         // =========================================================================
         // APP CONSTANTS & VERSIONING
         // =========================================================================
-        const APP_VERSION = "3.2.0";
+        const APP_VERSION = "3.5.0";
         
         const SERVICES = [
             "3D Skin Analysis + Custom Facial", "Dermaplaning", "MesoWhite BB Glow", "Superjection",
@@ -77,10 +77,6 @@
             },
 
             addRecord: (clientName, service, serviceAmount, productAmount, duration, entryType, isNew, isRebook, date) => {
-                if (clientName && !appState.clients.includes(clientName)) {
-                    appState.clients.push(clientName);
-                    appState.clients.sort();
-                }
                 const record = {
                     id: Date.now(),
                     therapistEmail: appState.user.email,
@@ -105,11 +101,7 @@
             updateRecord: (id, updatedData) => {
                 const index = appState.records.findIndex(r => r.id === id);
                 if (index !== -1) {
-                    appState.records[index] = {
-                        ...appState.records[index],
-                        ...updatedData,
-                        totalAmount: (parseFloat(updatedData.serviceAmount) || 0) + (parseFloat(updatedData.productAmount) || 0)
-                    };
+                    appState.records[index] = { ...appState.records[index], ...updatedData, totalAmount: (parseFloat(updatedData.serviceAmount) || 0) + (parseFloat(updatedData.productAmount) || 0) };
                     UI.refreshStats();
                     if(window.currentTab === 'dashboard') UI.renderTodayTable();
                     if(window.currentTab === 'history') UI.renderHistoryTable();
@@ -144,8 +136,15 @@
                 const serviceRevenue = filteredRecords.reduce((sum, r) => sum + (r.serviceAmount || 0), 0);
                 const productRevenue = filteredRecords.reduce((sum, r) => sum + (r.productAmount || 0), 0);
                 const monthlyTarget = (currentUserConfig.hourlyRate * currentUserConfig.agreedHours) * 4;
+                const totalClients = filteredRecords.length;
                 const rebookedClients = filteredRecords.filter(r => r.isRebook).length;
-                return { totalRevenue, serviceRevenue, productRevenue, monthlyTarget, percentageToTarget: monthlyTarget > 0 ? (totalRevenue / monthlyTarget) * 100 : 0, rebookingRate: filteredRecords.length > 0 ? (rebookedClients/filteredRecords.length)*100 : 0, totalClients: filteredRecords.length, rebookedClients };
+                const newClientsCount = filteredRecords.filter(r => r.isNew).length;
+                return { 
+                    totalRevenue, serviceRevenue, productRevenue, monthlyTarget, 
+                    percentageToTarget: monthlyTarget > 0 ? (totalRevenue / monthlyTarget) * 100 : 0, 
+                    rebookingRate: totalClients > 0 ? (rebookedClients/totalClients)*100 : 0, 
+                    totalClients, rebookedClients, newClients: newClientsCount 
+                };
             },
 
             getGroupMetrics: (dateContext = new Date()) => {
@@ -161,85 +160,47 @@
                     const userRecords = filteredRecords.filter(r => r.therapistEmail === user.email);
                     const userTotalRev = userRecords.reduce((sum, r) => sum + r.totalAmount, 0);
                     const userTarget = (user.hourlyRate * user.agreedHours) * 4;
-                    const userClients = userRecords.length;
-                    const userRebooked = userRecords.filter(r => r.isRebook).length;
+                    const uClients = userRecords.length;
+                    const uRebooked = userRecords.filter(r => r.isRebook).length;
                     return {
                         name: user.name, revenue: userTotalRev, 
                         serviceRevenue: userRecords.reduce((sum, r) => sum + (r.serviceAmount || 0), 0),
                         productRevenue: userRecords.reduce((sum, r) => sum + (r.productAmount || 0), 0),
                         targetPct: userTarget > 0 ? (userTotalRev / userTarget) * 100 : 0,
-                        clients: userClients, rebooked: userRebooked,
-                        rebookRate: userClients > 0 ? (userRebooked / userClients) * 100 : 0
+                        clients: uClients, rebooked: uRebooked,
+                        rebookRate: uClients > 0 ? (uRebooked / uClients) * 100 : 0
                     };
                 });
-                return { totalRevenue, serviceRevenue, productRevenue, monthlyTarget: totalGroupTarget, percentageToTarget: totalGroupTarget > 0 ? (totalRevenue / totalGroupTarget) * 100 : 0, rebookingRate: filteredRecords.length > 0 ? (filteredRecords.filter(r => r.isRebook).length / filteredRecords.length) * 100 : 0, totalClients: filteredRecords.length, rebookedClients: filteredRecords.filter(r => r.isRebook).length, individualStats };
+                return { 
+                    totalRevenue, serviceRevenue, productRevenue, monthlyTarget: totalGroupTarget, 
+                    percentageToTarget: totalGroupTarget > 0 ? (totalRevenue / totalGroupTarget) * 100 : 0, 
+                    rebookingRate: filteredRecords.length > 0 ? (filteredRecords.filter(r => r.isRebook).length / filteredRecords.length) * 100 : 0, 
+                    totalClients: filteredRecords.length, rebookedClients: filteredRecords.filter(r => r.isRebook).length, 
+                    newClients: filteredRecords.filter(r => r.isNew).length, individualStats 
+                };
             },
 
             generateFakeData: () => {
                 const now = new Date();
                 const fakeClients = ["Alice Smith", "Bob Jones", "Charlie Day", "Diana Prince", "Evan Wright", "George Costanza", "Elaine Benes", "Cosmo Kramer"];
-                
                 const createRandomRecord = (therapistEmail, date) => {
                     const typeRoll = Math.random();
                     let entryType, service, sA, pA, duration;
-
-                    if (typeRoll < 0.4) {
-                        entryType = 'service';
-                        service = SERVICES[Math.floor(Math.random() * SERVICES.length)];
-                        sA = Math.floor(Math.random() * 120) + 60;
-                        pA = 0;
-                        duration = "1h";
-                    } else if (typeRoll < 0.8) {
-                        entryType = 'service_product';
-                        service = SERVICES[Math.floor(Math.random() * SERVICES.length)];
-                        sA = Math.floor(Math.random() * 120) + 60;
-                        pA = Math.floor(Math.random() * 80) + 20;
-                        duration = "1h 15m";
-                    } else {
-                        entryType = 'product';
-                        service = 'Product Sale';
-                        sA = 0;
-                        pA = Math.floor(Math.random() * 150) + 30;
-                        duration = null;
-                    }
-
-                    const hour = Math.floor(Math.random() * 9) + 9;
-                    const minute = Math.floor(Math.random() * 60);
-                    const finalDate = new Date(date);
-                    finalDate.setHours(hour, minute, 0, 0);
-
-                    return {
-                        id: Date.now() + Math.random(),
-                        therapistEmail,
-                        clientName: fakeClients[Math.floor(Math.random() * fakeClients.length)],
-                        service,
-                        serviceAmount: sA,
-                        productAmount: pA,
-                        totalAmount: sA + pA,
-                        duration,
-                        entryType,
-                        isNew: Math.random() > 0.5,
-                        isRebook: Math.random() > 0.6,
-                        date: finalDate.toISOString()
-                    };
+                    if (typeRoll < 0.4) { entryType = 'service'; service = SERVICES[Math.floor(Math.random() * SERVICES.length)]; sA = Math.floor(Math.random() * 120) + 60; pA = 0; duration = "1h"; }
+                    else if (typeRoll < 0.8) { entryType = 'service_product'; service = SERVICES[Math.floor(Math.random() * SERVICES.length)]; sA = Math.floor(Math.random() * 120) + 60; pA = Math.floor(Math.random() * 80) + 20; duration = "1h 15m"; }
+                    else { entryType = 'product'; service = 'Product Sale'; sA = 0; pA = Math.floor(Math.random() * 150) + 30; duration = null; }
+                    const hour = Math.floor(Math.random() * 9) + 9; const minute = Math.floor(Math.random() * 60); const finalDate = new Date(date); finalDate.setHours(hour, minute, 0, 0);
+                    return { id: Date.now() + Math.random(), therapistEmail, clientName: fakeClients[Math.floor(Math.random() * fakeClients.length)], service, serviceAmount: sA, productAmount: pA, totalAmount: sA + pA, duration, entryType, isNew: Math.random() > 0.6, isRebook: Math.random() > 0.6, date: finalDate.toISOString() };
                 };
-
-                for(let i=0; i<5; i++) {
-                    appState.records.push(createRandomRecord(appState.user.email, now));
-                }
-                
+                for(let i=0; i<5; i++) appState.records.push(createRandomRecord(appState.user.email, now));
                 for(let i=5; i<30; i++) {
                     const randomUser = appState.users[Math.floor(Math.random() * appState.users.length)];
-                    const day = Math.floor(Math.random() * 27) + 1;
-                    const histDate = new Date(now.getFullYear(), now.getMonth(), day);
+                    const histDate = new Date(now.getFullYear(), now.getMonth(), Math.floor(Math.random() * 27) + 1);
                     appState.records.push(createRandomRecord(randomUser.email, histDate));
                 }
-
                 UI.refreshStats();
                 if(window.currentTab === 'dashboard') UI.renderTodayTable();
-                if(window.currentTab === 'history') UI.renderHistoryTable();
-                if(window.currentTab === 'group') UI.renderGroupStats();
-                UI.showToast("Seeded mixed record types.");
+                UI.showToast("Seeded mixed testing data.");
             }
         };
 
@@ -279,9 +240,7 @@
                 const r = appState.records.find(rec => rec.id === id); if (!r) return;
                 const form = document.getElementById('editForm');
                 form.dataset.id = id;
-                form.querySelectorAll('input[name="editEntryType"]').forEach(radio => { 
-                    if(radio.value === r.entryType) radio.checked = true; 
-                });
+                form.querySelectorAll('input[name="editEntryType"]').forEach(radio => { if(radio.value === r.entryType) radio.checked = true; });
                 UI.toggleEditEntryFields();
                 form.editClientName.value = r.clientName || '';
                 form.editService.value = r.service === 'Product Sale' ? '' : r.service;
@@ -289,10 +248,8 @@
                 form.editProductAmount.value = r.productAmount || 0;
                 form.editDate.value = new Date(r.date).toISOString().split('T')[0];
                 if (r.duration) {
-                    const hMatch = r.duration.match(/(\d+)h/);
-                    const mMatch = r.duration.match(/(\d+)m/);
-                    form.editDurationHours.value = hMatch ? hMatch[1] : "0";
-                    form.editDurationMinutes.value = mMatch ? mMatch[1] : "0";
+                    const hMatch = r.duration.match(/(\d+)h/); const mMatch = r.duration.match(/(\d+)m/);
+                    form.editDurationHours.value = hMatch ? hMatch[1] : "0"; form.editDurationMinutes.value = mMatch ? mMatch[1] : "0";
                 }
                 document.getElementById('editModal').classList.remove('hidden');
             },
@@ -307,9 +264,7 @@
                 appState.pendingDeleteId = null;
                 document.getElementById('deleteModal').classList.add('hidden');
             },
-            confirmDelete: () => {
-                if(appState.pendingDeleteId) Logic.deleteRecord(appState.pendingDeleteId);
-            },
+            confirmDelete: () => { if(appState.pendingDeleteId) Logic.deleteRecord(appState.pendingDeleteId); },
 
             showToast: (m, t = 'success') => {
                 const toast = document.createElement('div');
@@ -328,8 +283,8 @@
                             <div class="bg-white rounded-xl shadow-2xl w-full max-w-xs p-6 text-center">
                                 <h3 class="text-lg font-bold mb-4 text-gray-900 uppercase">Delete Record?</h3>
                                 <div class="flex space-x-3">
-                                    <button onclick="UI.closeDeleteModal()" class="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-lg text-[10px] font-black uppercase tracking-wider">Cancel</button>
-                                    <button onclick="UI.confirmDelete()" class="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm">Delete</button>
+                                    <button onclick="UI.closeDeleteModal()" class="flex-1 py-2.5 bg-gray-100 rounded-lg text-xs font-bold uppercase">Cancel</button>
+                                    <button onclick="UI.confirmDelete()" class="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-xs font-bold uppercase shadow-sm">Delete</button>
                                 </div>
                             </div>
                         </div>
@@ -337,18 +292,18 @@
                         <div id="entryModal" class="fixed inset-0 bg-black bg-opacity-50 z-[90] hidden flex items-center justify-center p-4">
                             <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-y-auto max-h-[90vh]">
                                 <div class="p-4 border-b flex justify-between items-center bg-gray-50">
-                                    <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider">New Performance Entry</h3>
+                                    <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider">New Entry</h3>
                                     <button onclick="UI.closeEntryModal()" class="text-gray-400 hover:text-black transition-colors"><i class="fas fa-times"></i></button>
                                 </div>
                                 <form id="dataEntryForm" class="p-6 space-y-4">
                                     <div class="flex justify-around border-b pb-4">
-                                        <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="service" checked onchange="UI.toggleEntryFields()"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-500">Service Only</span></label>
+                                        <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="service" checked onchange="UI.toggleEntryFields()"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-500">Service</span></label>
                                         <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="service_product" onchange="UI.toggleEntryFields()"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-500">Svc+Prod</span></label>
-                                        <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="product" onchange="UI.toggleEntryFields()"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-500">Product Only</span></label>
+                                        <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="product" onchange="UI.toggleEntryFields()"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-500">Product</span></label>
                                     </div>
                                     <div class="grid grid-cols-2 gap-3">
-                                        <div><label class="text-[10px] font-black uppercase text-gray-400 tracking-widest">Date</label><input type="date" name="entryDate" required class="w-full rounded border p-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none shadow-sm"></div>
-                                        <div><label class="text-[10px] font-black uppercase text-gray-400 tracking-widest">Client</label><input type="text" name="clientName" list="clientOptions" required class="w-full rounded border p-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none shadow-sm" placeholder="Search or Enter"></div>
+                                        <div><label class="text-[10px] font-black uppercase text-gray-400">Date</label><input type="date" name="entryDate" required class="w-full rounded border p-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none shadow-sm"></div>
+                                        <div><label class="text-[10px] font-black uppercase text-gray-400">Client</label><input type="text" name="clientName" required class="w-full rounded border p-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none shadow-sm" placeholder="Name"></div>
                                     </div>
                                     <div id="serviceFields" class="space-y-3">
                                         <select name="service" class="w-full rounded border p-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none shadow-sm">${SERVICES.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
@@ -356,15 +311,15 @@
                                     </div>
                                     <div id="productFields" class="hidden"><input type="number" name="productAmount" step="0.01" class="w-full rounded border p-2 text-xs bg-blue-50 shadow-sm" placeholder="Product Amount $"></div>
                                     <div id="durationFields" class="flex space-x-2"><select name="durationHours" class="w-1/2 rounded border p-2 text-xs shadow-sm"><option value="0">0h</option><option value="1" selected>1h</option><option value="2">2h</option></select><select name="durationMinutes" class="w-1/2 rounded border p-2 text-xs shadow-sm"><option value="0">0m</option><option value="15">15m</option><option value="30">30m</option></select></div>
-                                    <div class="flex space-x-4 pt-2"><label class="flex items-center cursor-pointer"><input type="checkbox" name="isNew" class="h-4 w-4 text-teal-600 rounded"> <span class="ml-2 text-xs font-medium text-gray-600">New Client</span></label><label class="flex items-center cursor-pointer"><input type="checkbox" name="isRebook" class="h-4 w-4 text-teal-600 rounded"> <span class="ml-2 text-xs font-medium text-gray-600">Rebooked</span></label></div>
-                                    <button type="submit" class="w-full py-3 bg-teal-600 text-white rounded text-xs font-black uppercase tracking-widest hover:bg-teal-700 transition-colors shadow-lg active:scale-[0.98]">Confirm Entry</button>
+                                    <div class="flex space-x-4 pt-2"><label class="flex items-center"><input type="checkbox" name="isNew"> <span class="ml-2 text-xs font-medium text-gray-600">New Client</span></label><label class="flex items-center"><input type="checkbox" name="isRebook"> <span class="ml-2 text-xs font-medium text-gray-600">Rebooked</span></label></div>
+                                    <button type="submit" class="w-full py-3 bg-teal-600 text-white rounded text-xs font-black uppercase tracking-widest hover:bg-teal-700 transition-colors">Confirm Entry</button>
                                 </form>
                             </div>
                         </div>
 
                         <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 z-[90] hidden flex items-center justify-center p-4">
                             <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-                                <h3 class="text-xs font-black uppercase tracking-widest mb-4 text-gray-400">Edit Record</h3>
+                                <h3 class="text-xs font-black uppercase mb-4 text-gray-400">Edit Record</h3>
                                 <form id="editForm" class="p-6 space-y-4">
                                     <div class="flex justify-around border-b pb-4">
                                         <label class="flex flex-col items-center cursor-pointer"><input type="radio" name="editEntryType" value="service"> <span class="text-[10px] font-bold mt-1 uppercase text-gray-400">Service Only</span></label>
@@ -411,20 +366,20 @@
 
                         <!-- DARK FOOTER NAVIGATION -->
                         <nav class="fixed bottom-0 left-0 right-0 bg-gray-900 shadow-[0_-8px_20px_rgba(0,0,0,0.2)] z-50 flex justify-around items-center px-2 pt-3 pb-5">
-                            <button onclick="UI.switchTab('dashboard')" id="nav-dashboard" class="flex flex-col items-center justify-center w-1/4 transition-all py-1 active:scale-90">
+                            <button onclick="UI.switchTab('dashboard')" id="nav-dashboard" class="flex flex-col items-center justify-center w-1/4 transition-all py-1 active:scale-90 text-teal-400">
                                 <i class="fas fa-chart-line text-xl mb-1.5"></i>
                                 <span class="text-[9px] font-black uppercase tracking-widest">Me</span>
                             </button>
-                            <button onclick="UI.switchTab('history')" id="nav-history" class="flex flex-col items-center justify-center w-1/4 transition-all py-1 active:scale-90">
+                            <button onclick="UI.switchTab('history')" id="nav-history" class="flex flex-col items-center justify-center w-1/4 transition-all py-1 active:scale-90 text-gray-500">
                                 <i class="fas fa-history text-xl mb-1.5"></i>
                                 <span class="text-[9px] font-black uppercase tracking-widest">History</span>
                             </button>
-                            <button onclick="UI.switchTab('group')" id="nav-group" class="flex flex-col items-center justify-center w-1/4 transition-all py-1 active:scale-90">
+                            <button onclick="UI.switchTab('group')" id="nav-group" class="flex flex-col items-center justify-center w-1/4 transition-all py-1 active:scale-90 text-gray-500">
                                 <i class="fas fa-people-group text-xl mb-1.5"></i>
                                 <span class="text-[9px] font-black uppercase tracking-widest">Group</span>
                             </button>
                             ${isAdmin ? `
-                            <button onclick="UI.switchTab('config')" id="nav-config" class="flex flex-col items-center justify-center w-1/4 transition-all py-1 active:scale-90">
+                            <button onclick="UI.switchTab('config')" id="nav-config" class="flex flex-col items-center justify-center w-1/4 transition-all py-1 active:scale-90 text-gray-500">
                                 <i class="fas fa-sliders text-xl mb-1.5"></i>
                                 <span class="text-[9px] font-black uppercase tracking-widest">Setup</span>
                             </button>
@@ -433,7 +388,7 @@
                     </div>
                 `;
                 
-                // Form setup
+                // Form interactions
                 document.getElementById('dataEntryForm').addEventListener('submit', (e) => {
                     e.preventDefault();
                     const fd = new FormData(e.target);
@@ -495,49 +450,57 @@
                 const th = (m.monthlyTarget / maxVal) * 100;
                 
                 document.getElementById('stats-container').innerHTML = `
-                    <div class="bg-white p-4 rounded-2xl border border-gray-100 mb-4 shadow-sm">
-                        <div class="flex justify-between items-center mb-6">
-                            <h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Performance</h3>
-                            <div class="flex items-center space-x-1 bg-gray-50 rounded-lg p-0.5 border">
-                                <button onclick="Logic.changeMonth(-1)" class="p-1"><i class="fas fa-chevron-left text-[10px]"></i></button>
-                                <span class="text-[9px] font-black w-20 text-center uppercase">${cm}</span>
-                                <button onclick="Logic.changeMonth(1)" class="p-1"><i class="fas fa-chevron-right text-[10px]"></i></button>
-                            </div>
-                        </div>
-                        <div class="flex justify-center items-end space-x-6 h-64 border-b border-gray-50 pb-2 mb-4 relative">
-                            <!-- Actual Bar (Labels to the LEFT) -->
-                            <div class="flex flex-col items-center w-12 h-full justify-end relative">
-                                <div class="absolute right-full mr-3 bottom-[ah%] flex flex-col items-end whitespace-nowrap" style="bottom: ${ah}%">
-                                    <span class="text-[10px] font-black text-teal-600">${m.percentageToTarget.toFixed(0)}%</span>
-                                    <span class="text-[10px] font-black text-teal-600">$${m.totalRevenue.toLocaleString()}</span>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <!-- Left: Visual Bar Chart -->
+                        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center min-h-[350px]">
+                            <div class="flex justify-between items-center mb-8">
+                                <h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Monthly Status</h3>
+                                <div class="flex items-center space-x-1 bg-gray-50 rounded-lg p-1 border">
+                                    <button onclick="Logic.changeMonth(-1)" class="px-1"><i class="fas fa-chevron-left text-[10px]"></i></button>
+                                    <span class="text-[9px] font-black w-20 text-center uppercase">${cm}</span>
+                                    <button onclick="Logic.changeMonth(1)" class="px-1"><i class="fas fa-chevron-right text-[10px]"></i></button>
                                 </div>
-                                <div style="height: ${ah}%;" class="w-full bg-teal-500 rounded-t shadow-md transition-all duration-1000"></div>
-                                <span class="mt-3 text-[10px] font-black text-gray-400 uppercase">Actual</span>
                             </div>
-
-                            <!-- Spacer -->
-                            <div class="w-1"></div>
-
-                            <!-- Target Bar (Labels to the RIGHT) -->
-                            <div class="flex flex-col items-center w-12 h-full justify-end relative">
-                                <div class="absolute left-full ml-3 bottom-[th%] flex flex-col items-start whitespace-nowrap" style="bottom: ${th}%">
-                                    <span class="text-[10px] font-black text-blue-600">$${m.monthlyTarget.toLocaleString()}</span>
+                            <!-- Bar Container -->
+                            <div class="flex justify-center items-end space-x-10 h-64 pb-2 relative mx-auto w-full max-w-[280px]">
+                                <!-- Actual -->
+                                <div class="flex flex-col items-center w-14 h-full justify-end relative">
+                                    <div class="absolute right-full mr-4 flex flex-col items-end whitespace-nowrap" style="bottom: ${ah}%">
+                                        <span class="text-[11px] font-black text-teal-600">${m.percentageToTarget.toFixed(0)}%</span>
+                                        <span class="text-[10px] font-bold text-teal-600">$${m.totalRevenue.toLocaleString()}</span>
+                                    </div>
+                                    <div style="height: ${ah}%;" class="w-full bg-teal-500 rounded-t shadow-md transition-all duration-1000"></div>
+                                    <span class="mt-3 text-[10px] font-black text-gray-400 uppercase">Actual</span>
                                 </div>
-                                <div style="height: ${th}%;" class="w-full bg-blue-50 border-t border-x border-blue-100 rounded-t shadow-sm transition-all duration-1000"></div>
-                                <span class="mt-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Goal</span>
+                                <!-- Target -->
+                                <div class="flex flex-col items-center w-14 h-full justify-end relative">
+                                    <div class="absolute left-full ml-4 flex flex-col items-start whitespace-nowrap" style="bottom: ${th}%">
+                                        <span class="text-[10px] font-bold text-blue-600">$${m.monthlyTarget.toLocaleString()}</span>
+                                    </div>
+                                    <div style="height: ${th}%;" class="w-full bg-blue-50 border-t border-x border-blue-100 rounded-t shadow-sm transition-all duration-1000"></div>
+                                    <span class="mt-3 text-[10px] font-black text-gray-400 uppercase tracking-tighter">Goal</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3 mb-4">
-                        <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                            <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Revenue</p>
-                            <p class="text-lg font-black text-gray-900">$${m.totalRevenue.toLocaleString()}</p>
-                            <p class="text-[8px] font-bold text-gray-400 uppercase mt-1">Svc: $${m.serviceRevenue} | Prod: $${m.productRevenue}</p>
-                        </div>
-                        <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                            <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Rebooking Rate</p>
-                            <p class="text-lg font-black text-purple-600">${m.rebookingRate.toFixed(1)}%</p>
-                            <p class="text-[8px] font-bold text-gray-400 uppercase mt-1">${m.rebookedClients} of ${m.totalClients} Clients rebooked</p>
+
+                        <!-- Right: Metric Card List -->
+                        <div class="flex flex-col space-y-3">
+                            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
+                                <div><p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Revenue</p><p class="text-xl font-black text-gray-900">$${m.totalRevenue.toLocaleString()}</p></div>
+                                <div class="text-right text-[9px] font-bold text-gray-400 uppercase leading-relaxed">Svc: $${m.serviceRevenue}<br>Prod: $${m.productRevenue}</div>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
+                                <div><p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Target Progress</p><p class="text-xl font-black text-teal-600">${m.percentageToTarget.toFixed(1)}%</p></div>
+                                <div class="text-right text-[9px] font-bold text-gray-400 uppercase">reached</div>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
+                                <div><p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Rebooking Rate</p><p class="text-xl font-black text-purple-600">${m.rebookingRate.toFixed(1)}%</p></div>
+                                <div class="text-right text-[9px] font-bold text-gray-400 uppercase leading-none">${m.rebookedClients} of ${m.totalClients} clients<br>rebooked</div>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
+                                <div><p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">New Clients</p><p class="text-xl font-black text-green-600">${m.newClients}</p></div>
+                                <div class="text-right text-[9px] font-bold text-gray-400 uppercase">First Visits</div>
+                            </div>
                         </div>
                     </div>`;
             },
@@ -549,77 +512,62 @@
                 const ah = (m.totalRevenue / maxVal) * 100;
                 const th = (m.monthlyTarget / maxVal) * 100;
                 const cols = ['bg-teal-400', 'bg-sky-400', 'bg-violet-400', 'bg-rose-400', 'bg-amber-400'];
-                const segs = m.individualStats.map((s, i) => s.revenue <= 0 ? '' : `<div style="height: ${(s.revenue/m.totalRevenue)*100}%" class="${cols[i%cols.length]} border-b border-white/20"></div>`).join('');
-                const legs = m.individualStats.map((s, i) => `<div class="flex items-center text-[9px] text-gray-600 font-bold"><span class="w-2.5 h-2.5 rounded-full ${cols[i % cols.length]} mr-1 shadow-sm"></span><span>${s.name}</span></div>`).join('');
+                const segs = m.individualStats.map((s, i) => s.revenue <= 0 ? '' : `<div style="height: ${(s.revenue/m.totalRevenue)*100}%" class="${cols[i%cols.length]} border-b border-white/20 last:border-0"></div>`).join('');
+                const legs = m.individualStats.map((s, i) => `<div class="flex items-center text-[9px] text-gray-600 font-bold"><span class="w-2 h-2 rounded-full ${cols[i % cols.length]} mr-1.5"></span><span>${s.name}</span></div>`).join('');
                 
                 document.getElementById('group-stats-container').innerHTML = `
-                    <div class="bg-white p-4 rounded-xl border border-gray-100 mb-4 shadow-sm">
-                        <h3 class="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-4">Team Performance Overview</h3>
-                        <div class="flex justify-center items-end space-x-8 h-64 border-b border-gray-50 pb-2 mb-4 relative">
-                            <!-- Actual Team Bar (Labels LEFT) -->
-                            <div class="flex flex-col items-center w-14 h-full justify-end relative">
-                                <div class="absolute right-full mr-3 bottom-[ah%] flex flex-col items-end whitespace-nowrap" style="bottom: ${ah}%">
-                                    <span class="text-[10px] font-bold text-teal-600">${m.percentageToTarget.toFixed(1)}%</span>
-                                    <span class="text-[10px] font-bold text-teal-600">$${m.totalRevenue.toLocaleString()}</span>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <!-- Left: Visual Team Bar Chart -->
+                        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center min-h-[380px]">
+                            <h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-10 text-center">Team Performance Visual</h3>
+                            <div class="flex-1 flex justify-center items-end space-x-12 h-64 relative mx-auto w-full max-w-[300px] pb-4">
+                                <!-- Actual Team -->
+                                <div class="flex flex-col items-center w-16 h-full justify-end relative">
+                                    <div class="absolute right-full mr-4 flex flex-col items-end whitespace-nowrap" style="bottom: ${ah}%">
+                                        <span class="text-[11px] font-bold text-teal-600">${m.percentageToTarget.toFixed(1)}%</span>
+                                        <span class="text-[10px] font-bold text-teal-600">$${m.totalRevenue.toLocaleString()}</span>
+                                    </div>
+                                    <div style="height: ${ah}%;" class="w-full rounded-t-lg overflow-hidden flex flex-col-reverse shadow-md transition-all duration-1000">${segs}</div>
+                                    <span class="mt-3 text-[10px] font-bold text-gray-400 uppercase">Actual</span>
                                 </div>
-                                <div style="height: ${ah}%;" class="w-full rounded-t-lg overflow-hidden flex flex-col-reverse shadow-md transition-all duration-1000">${segs}</div>
-                                <span class="mt-3 text-[10px] font-bold text-gray-400 uppercase">Actual</span>
-                            </div>
-
-                            <!-- Target Team Bar (Labels RIGHT) -->
-                            <div class="flex flex-col items-center w-14 h-full justify-end relative">
-                                <div class="absolute left-full ml-3 bottom-[th%] flex flex-col items-start whitespace-nowrap" style="bottom: ${th}%">
-                                    <span class="text-[10px] font-bold text-blue-600">$${m.monthlyTarget.toLocaleString()}</span>
+                                <!-- Goal Team -->
+                                <div class="flex flex-col items-center w-16 h-full justify-end relative">
+                                    <div class="absolute left-full ml-4 flex flex-col items-start whitespace-nowrap" style="bottom: ${th}%">
+                                        <span class="text-[10px] font-bold text-blue-600">$${m.monthlyTarget.toLocaleString()}</span>
+                                    </div>
+                                    <div style="height: ${th}%;" class="w-full bg-blue-50 border-t border-x border-blue-100 rounded-t shadow-sm transition-all duration-1000"></div>
+                                    <span class="mt-3 text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Team Goal</span>
                                 </div>
-                                <div style="height:100%" class="w-full bg-blue-50 border-t border-x border-blue-100 rounded-t shadow-sm transition-all duration-1000"></div>
-                                <span class="mt-3 text-[10px] font-bold text-gray-400 uppercase">Team Target</span>
                             </div>
+                            <div class="flex flex-wrap justify-center gap-x-4 gap-y-2 mt-4 pt-4 border-t border-gray-50">${legs}</div>
                         </div>
-                        <div class="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-4 pt-4 border-t border-gray-50">${legs}</div>
-                    </div>
 
-                    <div class="grid grid-cols-2 gap-3 mb-4">
-                        <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                            <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Team Revenue</p>
-                            <p class="text-lg font-black text-gray-900">$${m.totalRevenue.toLocaleString()}</p>
-                            <p class="text-[8px] font-bold text-gray-400 uppercase mt-1">Svc: $${m.serviceRevenue} | Prod: $${m.productRevenue}</p>
-                        </div>
-                        <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                            <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Rebooking Rate</p>
-                            <p class="text-lg font-black text-purple-600">${m.rebookingRate.toFixed(1)}%</p>
-                            <p class="text-[8px] font-bold text-gray-400 uppercase mt-1">${m.rebookedClients} of ${m.totalClients} Clients rebooked</p>
+                        <!-- Right: Team Metric Card List -->
+                        <div class="flex flex-col space-y-3">
+                            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
+                                <div><p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Team Revenue</p><p class="text-xl font-black text-gray-900">$${m.totalRevenue.toLocaleString()}</p></div>
+                                <div class="text-right text-[9px] font-bold text-gray-400 uppercase leading-relaxed">Svc: $${m.serviceRevenue}<br>Prod: $${m.productRevenue}</div>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
+                                <div><p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Target Progress</p><p class="text-xl font-black text-teal-600">${m.percentageToTarget.toFixed(1)}%</p></div>
+                                <div class="text-right text-[10px] font-bold text-gray-400 uppercase">Team Reached</div>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
+                                <div><p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Avg Rebooking Rate</p><p class="text-xl font-black text-purple-600">${m.rebookingRate.toFixed(1)}%</p></div>
+                                <div class="text-right text-[9px] font-bold text-gray-400 uppercase leading-none">${m.rebookedClients} of ${m.totalClients} clients<br>rebooked</div>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
+                                <div><p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Team New Clients</p><p class="text-xl font-black text-green-600">${m.newClients}</p></div>
+                                <div class="text-right text-[10px] font-bold text-gray-400 uppercase">Combined Acquisitions</div>
+                            </div>
                         </div>
                     </div>
 
                     <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto p-4 mb-4">
                         <h3 class="text-sm font-bold text-gray-900 mb-4">Therapist Breakdown</h3>
                         <table class="min-w-full">
-                            <thead class="bg-gray-50">
-                                <tr class="text-[10px] text-gray-400 uppercase font-black border-b border-gray-100">
-                                    <th class="text-left py-3 px-2">Therapist</th>
-                                    <th class="text-right py-3 px-2 whitespace-nowrap">Total Rev</th>
-                                    <th class="text-right py-3 px-2 whitespace-nowrap">Svc ($)</th>
-                                    <th class="text-right py-3 px-2 whitespace-nowrap">Prod ($)</th>
-                                    <th class="text-right py-3 px-2 whitespace-nowrap">Target %</th>
-                                    <th class="text-right py-3 px-2 whitespace-nowrap">Rebook %</th>
-                                    <th class="text-center py-3 px-2">Clients</th>
-                                    <th class="text-center py-3 px-2">Rebooked</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100">
-                                ${m.individualStats.map(s => `
-                                    <tr>
-                                        <td class="py-3 px-2 text-xs font-bold text-gray-900">${s.name}</td>
-                                        <td class="py-3 px-2 text-xs text-right font-bold text-gray-900">$${s.revenue.toLocaleString()}</td>
-                                        <td class="py-3 px-2 text-xs text-right text-gray-400">$${s.serviceRevenue.toLocaleString()}</td>
-                                        <td class="py-3 px-2 text-xs text-right text-blue-600 font-medium">$${s.productRevenue.toLocaleString()}</td>
-                                        <td class="py-3 px-2 text-xs text-right text-gray-400">${s.targetPct.toFixed(1)}%</td>
-                                        <td class="py-3 px-2 text-xs text-right font-bold text-gray-900">${s.rebookRate.toFixed(1)}%</td>
-                                        <td class="py-3 px-2 text-xs text-center text-gray-400">${s.clients}</td>
-                                        <td class="py-3 px-2 text-xs text-center text-gray-400">${s.rebooked}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
+                            <thead class="bg-gray-50 border-b"><tr class="text-[10px] text-gray-400 uppercase font-black"><th class="text-left py-3 px-2">Therapist</th><th class="text-right py-3 px-2">Total Rev</th><th class="text-right py-3 px-2">Svc ($)</th><th class="text-right py-3 px-2">Prod ($)</th><th class="text-right py-3 px-2">Target %</th><th class="text-right py-3 px-2">Rebook %</th><th class="text-center py-3 px-2">Clients</th><th class="text-center py-3 px-2">Rebooked</th></tr></thead>
+                            <tbody class="divide-y divide-gray-100">${m.individualStats.map(s => `<tr><td class="py-3 px-2 text-xs font-bold text-gray-900">${s.name}</td><td class="py-3 px-2 text-xs text-right font-bold text-gray-900">$${s.revenue.toLocaleString()}</td><td class="py-3 px-2 text-xs text-right text-gray-400">$${s.serviceRevenue.toLocaleString()}</td><td class="py-3 px-2 text-xs text-right text-blue-600 font-medium">$${s.productRevenue.toLocaleString()}</td><td class="py-3 px-2 text-xs text-right text-gray-400">${s.targetPct.toFixed(1)}%</td><td class="py-3 px-2 text-xs text-right font-bold text-gray-900">${s.rebookRate.toFixed(1)}%</td><td class="py-3 px-2 text-xs text-center text-gray-400">${s.clients}</td><td class="py-3 px-2 text-xs text-center text-gray-400">${s.rebooked}</td></tr>`).join('')}</tbody>
                         </table>
                     </div>`;
             },
@@ -634,52 +582,21 @@
 
                 cont.innerHTML = `
                     <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-                        <h3 class="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-4">Today's Activity Log</h3>
+                        <h3 class="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-4">Daily Activity Log</h3>
                         <div class="overflow-x-auto">
                             <table class="min-w-full">
-                                <thead class="border-b bg-gray-50/50">
-                                    <tr class="text-[8px] font-black text-gray-400 uppercase tracking-tighter">
-                                        <th class="text-left py-2 px-2 w-16">Date</th>
-                                        <th class="text-left py-2 px-2">Client & Service</th>
-                                        <th class="text-center py-2 px-1 w-12">New</th>
-                                        <th class="text-center py-2 px-1 w-12">Rbk</th>
-                                        <th class="text-right py-2 px-2">Total</th>
-                                        <th class="text-center py-2 px-2 w-20">Actions</th>
-                                    </tr>
-                                </thead>
+                                <thead class="border-b bg-gray-50/50"><tr class="text-[8px] font-black text-gray-400 uppercase tracking-tighter"><th class="text-left py-2 px-2 w-16">Date</th><th class="text-left py-2 px-2">Client & Service</th><th class="text-center py-2 px-1 w-12">New</th><th class="text-center py-2 px-1 w-12">Rbk</th><th class="text-right py-2 px-2">Total</th><th class="text-center py-2 px-2 w-20">Actions</th></tr></thead>
                                 <tbody class="divide-y divide-gray-100">
-                                    ${records.length === 0 ? '<tr><td colspan="6" class="py-12 text-center text-gray-300 text-xs italic">No entries for today.</td></tr>' : records.map(r => `
+                                    ${records.length === 0 ? '<tr><td colspan="6" class="py-12 text-center text-gray-300 text-xs italic">No activity entries found today.</td></tr>' : records.map(r => `
                                     <tr class="hover:bg-gray-50/50">
-                                        <td class="py-3 px-2 align-top">
-                                            <span class="text-[9px] font-black text-gray-400 uppercase leading-none">
-                                                ${new Date(r.date).toLocaleDateString([], {month:'numeric', day:'numeric'})}
-                                            </span>
+                                        <td class="py-3 px-2 align-top text-[9px] font-black text-gray-400 uppercase leading-none">
+                                            ${new Date(r.date).toLocaleDateString([], {month:'numeric', day:'numeric'})}
                                         </td>
-                                        <td class="py-3 px-2 align-top">
-                                            <div class="flex flex-col">
-                                                <span class="text-[11px] font-bold text-gray-800 leading-tight">${r.clientName}</span>
-                                                <span class="text-[9px] text-gray-400 font-medium truncate max-w-[120px]">${r.service}</span>
-                                                ${r.duration ? `<span class="text-[8px] font-bold text-gray-300"><i class="far fa-clock mr-0.5"></i>${r.duration}</span>` : ''}
-                                            </div>
-                                        </td>
-                                        <td class="py-3 px-1 align-top text-center">
-                                            ${r.isNew ? '<span class="text-[8px] font-black bg-green-50 text-green-500 px-1 py-0.5 rounded border border-green-100">NEW</span>' : '<span class="text-gray-100 text-[10px]">—</span>'}
-                                        </td>
-                                        <td class="py-3 px-1 align-top text-center">
-                                            ${r.isRebook ? '<span class="text-[8px] font-black bg-purple-50 text-purple-500 px-1 py-0.5 rounded border border-purple-100">REBOOKED</span>' : '<span class="text-gray-100 text-[10px]">—</span>'}
-                                        </td>
-                                        <td class="py-3 px-2 align-top text-right">
-                                            <div class="flex flex-col">
-                                                <span class="text-[11px] font-black text-gray-900 leading-none">$${r.totalAmount.toFixed(2)}</span>
-                                                ${r.productAmount > 0 ? `<span class="text-[8px] font-bold text-blue-500 mt-1 leading-none">Incl. $${r.productAmount} P</span>` : ''}
-                                            </div>
-                                        </td>
-                                        <td class="py-3 px-2 align-top text-center">
-                                            <div class="flex items-center justify-center space-x-2">
-                                                <button onclick="UI.openEditModal(${r.id})" class="text-gray-300 hover:text-teal-600 transition-colors p-1"><i class="fas fa-pencil-alt text-[10px]"></i></button>
-                                                <button onclick="UI.openDeleteModal(${r.id})" class="text-gray-200 hover:text-red-500 transition-colors p-1"><i class="fas fa-trash text-[10px]"></i></button>
-                                            </div>
-                                        </td>
+                                        <td class="py-3 px-2 align-top"><div class="flex flex-col"><span class="text-[11px] font-bold text-gray-800 leading-tight">${r.clientName}</span><span class="text-[9px] text-gray-400 font-medium truncate max-w-[120px]">${r.service}</span>${r.duration ? `<span class="text-[8px] font-bold text-gray-300"><i class="far fa-clock mr-0.5"></i>${r.duration}</span>` : ''}</div></td>
+                                        <td class="py-3 px-1 align-top text-center">${r.isNew ? '<span class="text-[8px] font-black bg-green-50 text-green-500 px-1 py-0.5 rounded border border-green-100">NEW</span>' : '<span class="text-gray-100 text-[10px]">—</span>'}</td>
+                                        <td class="py-3 px-1 align-top text-center">${r.isRebook ? '<span class="text-[8px] font-black bg-purple-50 text-purple-500 px-1 py-0.5 rounded border border-purple-100">REBOOKED</span>' : '<span class="text-gray-100 text-[10px]">—</span>'}</td>
+                                        <td class="py-3 px-2 align-top text-right"><div class="flex flex-col"><span class="text-[11px] font-black text-gray-900 leading-none">$${r.totalAmount.toFixed(2)}</span>${r.productAmount > 0 ? `<span class="text-[8px] font-bold text-blue-500 mt-1 leading-none">Incl. $${r.productAmount} P</span>` : ''}</div></td>
+                                        <td class="py-3 px-2 align-top text-center"><div class="flex items-center justify-center space-x-2"><button onclick="UI.openEditModal(${r.id})" class="text-gray-300 hover:text-teal-600 transition-colors p-1"><i class="fas fa-pencil-alt text-sm"></i></button><button onclick="UI.openDeleteModal(${r.id})" class="text-gray-200 hover:text-red-500 transition-colors p-1"><i class="fas fa-trash text-sm"></i></button></div></td>
                                     </tr>`).join('')}
                                 </tbody>
                             </table>
@@ -691,66 +608,11 @@
                 const cont = document.getElementById('history-container'); if (!cont) return;
                 const tm = appState.currentDate.getMonth(); const ty = appState.currentDate.getFullYear();
                 const cm = appState.currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-                const records = appState.records.filter(r => {
-                    const rd = new Date(r.date); return rd.getMonth() === tm && rd.getFullYear() === ty && r.therapistEmail === appState.user.email;
-                }).sort((a, b) => new Date(a.date) - new Date(b.date));
-
+                const records = appState.records.filter(r => { const rd = new Date(r.date); return rd.getMonth() === tm && rd.getFullYear() === ty && r.therapistEmail === appState.user.email; }).sort((a, b) => new Date(a.date) - new Date(b.date));
                 cont.innerHTML = `
                     <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-                        <div class="flex justify-between items-center mb-6">
-                            <div class="flex flex-col">
-                                <h3 class="text-[10px] font-black text-gray-300 uppercase tracking-widest leading-none mb-1">Monthly History Log</h3>
-                                <span class="text-sm font-bold text-gray-900">${cm}</span>
-                            </div>
-                            <div class="flex space-x-1">
-                                <button onclick="Logic.changeMonth(-1)" class="p-2 bg-gray-50 rounded-xl text-gray-500 hover:bg-gray-100 transition-all"><i class="fas fa-chevron-left text-xs"></i></button>
-                                <button onclick="Logic.changeMonth(1)" class="p-2 bg-gray-50 rounded-xl text-gray-500 hover:bg-gray-100 transition-all"><i class="fas fa-chevron-right text-xs"></i></button>
-                            </div>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full">
-                                <thead class="border-b bg-gray-50/50">
-                                    <tr class="text-[8px] font-black text-gray-400 uppercase tracking-tighter">
-                                        <th class="text-left py-2 px-2 w-16">Date</th>
-                                        <th class="text-left py-2 px-2">Client & Service</th>
-                                        <th class="text-center py-2 px-1 w-12">New</th>
-                                        <th class="text-center py-2 px-1 w-12">Rbk</th>
-                                        <th class="text-right py-2 px-2">Total</th>
-                                        <th class="text-center py-2 px-2 w-20">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-gray-100">
-                                    ${records.length === 0 ? '<tr><td colspan="6" class="py-12 text-center text-gray-300 text-xs italic">No data logged for this period.</td></tr>' : records.map(r => `
-                                    <tr class="hover:bg-gray-50/50">
-                                        <td class="py-3 px-2 align-top text-[10px] font-black text-gray-400 uppercase">${new Date(r.date).toLocaleDateString([], { month: 'numeric', day: 'numeric' })}</td>
-                                        <td class="py-3 px-2 align-top">
-                                            <div class="flex flex-col">
-                                                <span class="text-[11px] font-bold text-gray-800 leading-tight">${r.clientName}</span>
-                                                <span class="text-[9px] text-gray-400 font-medium truncate max-w-[150px]">${r.service}</span>
-                                            </div>
-                                        </td>
-                                        <td class="py-3 px-1 align-top text-center">
-                                            ${r.isNew ? '<span class="text-[8px] font-black bg-green-50 text-green-500 px-1 py-0.5 rounded border border-green-100">NEW</span>' : '<span class="text-gray-100 text-[10px]">—</span>'}
-                                        </td>
-                                        <td class="py-3 px-1 align-top text-center">
-                                            ${r.isRebook ? '<span class="text-[8px] font-black bg-purple-50 text-purple-500 px-1 py-0.5 rounded border border-purple-100">REBOOKED</span>' : '<span class="text-gray-100 text-[10px]">—</span>'}
-                                        </td>
-                                        <td class="py-3 px-2 align-top text-right">
-                                            <div class="flex flex-col">
-                                                <span class="text-[11px] font-black text-gray-900 leading-none">$${r.totalAmount.toFixed(2)}</span>
-                                                ${r.productAmount > 0 ? `<span class="text-[8px] font-bold text-blue-500 mt-1 leading-none">Incl. $${r.productAmount} P</span>` : ''}
-                                            </div>
-                                        </td>
-                                        <td class="py-3 px-2 align-top text-center">
-                                            <div class="flex items-center justify-center space-x-2">
-                                                <button onclick="UI.openEditModal(${r.id})" class="text-gray-300 hover:text-teal-600 transition-colors p-1"><i class="fas fa-pencil-alt text-[10px]"></i></button>
-                                                <button onclick="UI.openDeleteModal(${r.id})" class="text-gray-200 hover:text-red-500 transition-colors p-1"><i class="fas fa-trash text-[10px]"></i></button>
-                                            </div>
-                                        </td>
-                                    </tr>`).join('')}
-                                </tbody>
-                            </table>
-                        </div>
+                        <div class="flex justify-between items-center mb-6"><div class="flex flex-col"><h3 class="text-[10px] font-black text-gray-300 uppercase tracking-widest leading-none mb-1">History Log</h3><span class="text-sm font-bold text-gray-900">${cm}</span></div><div class="flex space-x-1"><button onclick="Logic.changeMonth(-1)" class="p-2 bg-gray-50 rounded-xl text-gray-500"><i class="fas fa-chevron-left text-xs"></i></button><button onclick="Logic.changeMonth(1)" class="p-2 bg-gray-50 rounded-xl text-gray-500"><i class="fas fa-chevron-right text-xs"></i></button></div></div>
+                        <div class="overflow-x-auto"><table class="min-w-full"><thead class="bg-gray-50/50 border-b"><tr class="text-[8px] font-black text-gray-400 uppercase tracking-tighter"><th class="text-left py-2 px-3 w-16">Date</th><th class="text-left py-2 px-3">Client & Info</th><th class="text-center py-2 px-1 w-12">New</th><th class="text-center py-2 px-1 w-12">Rbk</th><th class="text-right py-2 px-3">Total</th><th class="text-center py-2 px-3 w-20">Actions</th></tr></thead><tbody class="divide-y divide-gray-100">${records.length === 0 ? '<tr><td colspan="6" class="py-12 text-center text-gray-300 text-xs italic">No historical entries found.</td></tr>' : records.map(r => `<tr class="hover:bg-gray-50/50"><td class="py-3 px-3 align-top text-[10px] font-black text-gray-300 uppercase">${new Date(r.date).toLocaleDateString([], { month: 'numeric', day: 'numeric' })}</td><td class="py-3 px-3 align-top"><div class="flex flex-col"><span class="text-[11px] font-bold text-gray-800 leading-tight">${r.clientName}</span><span class="text-[9px] text-gray-400 font-medium truncate max-w-[150px]">${r.service}</span></div></td><td class="py-3 px-1 align-top text-center">${r.isNew ? '<span class="text-[8px] font-black bg-green-50 text-green-500 px-1 py-0.5 rounded">NEW</span>' : '—'}</td><td class="py-3 px-1 align-top text-center">${r.isRebook ? '<span class="text-[8px] font-black bg-purple-50 text-purple-500 px-1 py-0.5 rounded">RBK</span>' : '—'}</td><td class="py-3 px-3 align-top text-right"><div class="flex flex-col"><span class="text-[11px] font-black text-gray-900">$${r.totalAmount.toFixed(2)}</span>${r.productAmount > 0 ? `<span class="text-[8px] font-bold text-blue-500">Incl. $${r.productAmount} P</span>` : ''}</div></td><td class="py-3 px-3 align-top text-center"><div class="flex items-center justify-center space-x-2"><button onclick="UI.openEditModal(${r.id})" class="text-gray-300 hover:text-teal-600 transition-colors p-1"><i class="fas fa-pencil-alt text-xs"></i></button><button onclick="UI.openDeleteModal(${r.id})" class="text-gray-200 hover:text-red-500 transition-colors p-1"><i class="fas fa-trash text-xs"></i></button></div></td></tr>`).join('')}</tbody></table></div>
                     </div>`;
             },
 
@@ -758,16 +620,8 @@
                 const cont = document.getElementById('config-container'); if (!cont) return;
                 cont.innerHTML = `
                     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                        <div class="p-4 border-b bg-gray-50 flex justify-between items-center"><h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Staff Configuration</h3><button onclick="Logic.saveAllConfigs()" class="bg-black text-white px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest shadow hover:bg-gray-800 transition-all">Save All</button></div>
-                        <div class="p-4 space-y-4 divide-y divide-gray-50">${appState.users.map(u => `
-                            <div class="config-row space-y-2 py-4 first:pt-0" data-email="${u.email}">
-                                <div class="flex justify-between items-center mb-2"><span class="text-[10px] font-black text-gray-800 uppercase tracking-tighter">${u.email}</span><span class="text-[8px] bg-black text-white px-2 py-0.5 rounded-full uppercase font-black">${u.role}</span></div>
-                                <div class="grid grid-cols-3 gap-2">
-                                    <div class="flex flex-col"><label class="text-[7px] font-black text-gray-400 uppercase mb-0.5 tracking-tighter">Display Name</label><input type="text" value="${u.name}" class="input-name border rounded p-1.5 text-xs focus:ring-1 focus:ring-teal-500 shadow-sm outline-none"></div>
-                                    <div class="flex flex-col"><label class="text-[7px] font-black text-gray-400 uppercase mb-0.5 tracking-tighter">Hourly Rate ($)</label><input type="number" value="${u.hourlyRate}" class="input-rate border rounded p-1.5 text-xs focus:ring-1 focus:ring-teal-500 shadow-sm outline-none"></div>
-                                    <div class="flex flex-col"><label class="text-[7px] font-black text-gray-400 uppercase mb-0.5 tracking-tighter">Weekly Hours</label><input type="number" value="${u.agreedHours}" class="input-hours border rounded p-1.5 text-xs focus:ring-1 focus:ring-teal-500 shadow-sm outline-none"></div>
-                                </div>
-                            </div>`).join('')}</div>
+                        <div class="p-4 border-b bg-gray-50 flex justify-between items-center"><h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Configuration</h3><button onclick="Logic.saveAllConfigs()" class="bg-black text-white px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest shadow hover:bg-gray-800 transition-all">Save All</button></div>
+                        <div class="p-4 space-y-4 divide-y divide-gray-50">${appState.users.map(u => `<div class="config-row space-y-2 py-4 first:pt-0" data-email="${u.email}"><div class="flex justify-between items-center mb-2"><span class="text-[10px] font-black text-gray-800 uppercase tracking-tighter">${u.email}</span><span class="text-[8px] bg-black text-white px-2 py-0.5 rounded-full uppercase font-black">${u.role}</span></div><div class="grid grid-cols-3 gap-2"><div class="flex flex-col"><label class="text-[7px] font-black text-gray-400 uppercase mb-0.5 tracking-tighter">Name</label><input type="text" value="${u.name}" class="input-name border rounded p-1.5 text-xs focus:ring-1 focus:ring-teal-500 outline-none"></div><div class="flex flex-col"><label class="text-[7px] font-black text-gray-400 uppercase mb-0.5 tracking-tighter">Rate</label><input type="number" value="${u.hourlyRate}" class="input-rate border rounded p-1.5 text-xs focus:ring-1 focus:ring-teal-500 outline-none"></div><div class="flex flex-col"><label class="text-[7px] font-black text-gray-400 uppercase mb-0.5 tracking-tighter">Hours</label><input type="number" value="${u.agreedHours}" class="input-hours border rounded p-1.5 text-xs focus:ring-1 focus:ring-teal-500 outline-none"></div></div></div>`).join('')}</div>
                     </div>`;
             }
         };
