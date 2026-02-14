@@ -21,63 +21,21 @@
         import { getFirestore, collection, addDoc, query, where, getDocs, doc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
         // =========================================================================
-        // FIREBASE CONFIGURATION
-        // Paste your config object below when ready to go live.
-        // Leave empty to run in "Simulation Mode".
-        // =========================================================================
-        const firebaseConfig = {
-            // apiKey: "YOUR_API_KEY",
-            // authDomain: "YOUR_PROJECT.firebaseapp.com",
-            // projectId: "YOUR_PROJECT_ID",
-            // storageBucket: "YOUR_PROJECT.appspot.com",
-            // messagingSenderId: "SENDER_ID",
-            // appId: "APP_ID"
-        };
-
-        // =========================================================================
         // APP STATE & SIMULATION DATA
         // =========================================================================
         
-        // Comprehensive Service List for Dropdown
         const SERVICES = [
-            "3D Skin Analysis + Custom Facial",
-            "Dermaplaning",
-            "MesoWhite BB Glow",
-            "Superjection",
-            "12-Step Ultimate Facial",
-            "Radio Frequency (RF) Facial & Body",
-            "Exosome Regeneration Therapy",
-            "Picosecond Laser Skin Revitalisation",
-            "Thermage CPT",
-            "Cosmelan",
-            "Cosmetic Skin Growth Removal",
-            "SQT Bio-Microneedling",
-            "HIFU",
-            "Hydrodermabrasion and Microdermabrasion",
-            "Microneedling",
-            "Medi-Aesthetic Peel / Light Chemical Peel",
-            "LED Light Therapy",
-            "Oxygeneo",
-            "Calming (High Frequency) Facial",
-            "Fractional RF Microneedling",
-            "Sonophoresis Vitamin Infusion",
-            "Diode Laser Hair Removal",
-            "Lash Lift",
-            "Thermage CPT Body",
-            "Cryolipolysis (Fat Freezing)",
-            "HIFU Body",
-            "Bacial",
-            "Vacuum Therapy",
-            "EMSculpt",
-            "Cosmetic Skin Growth Removal Body",
-            "Laser Lipolysis",
-            "Hand Rejuvenation",
-            "Ultrasonic Fat Cavitation",
-            "Laser Skin Brightening",
-            "Consultation"
+            "3D Skin Analysis + Custom Facial", "Dermaplaning", "MesoWhite BB Glow", "Superjection",
+            "12-Step Ultimate Facial", "Radio Frequency (RF) Facial & Body", "Exosome Regeneration Therapy",
+            "Picosecond Laser Skin Revitalisation", "Thermage CPT", "Cosmelan", "Cosmetic Skin Growth Removal",
+            "SQT Bio-Microneedling", "HIFU", "Hydrodermabrasion and Microdermabrasion", "Microneedling",
+            "Medi-Aesthetic Peel / Light Chemical Peel", "LED Light Therapy", "Oxygeneo",
+            "Calming (High Frequency) Facial", "Fractional RF Microneedling", "Sonophoresis Vitamin Infusion",
+            "Diode Laser Hair Removal", "Lash Lift", "Thermage CPT Body", "Cryolipolysis (Fat Freezing)",
+            "HIFU Body", "Bacial", "Vacuum Therapy", "EMSculpt", "Cosmetic Skin Growth Removal Body",
+            "Laser Lipolysis", "Hand Rejuvenation", "Ultrasonic Fat Cavitation", "Laser Skin Brightening", "Consultation"
         ];
 
-        // Default users - Admin now has therapist defaults
         const defaultUsers = [
             { email: 'info@totallyradbeauty.com', role: 'admin', hourlyRate: 35, agreedHours: 40, name: 'Arianne' },
             { email: 'Rizkiastagini@gmail.com', role: 'therapist', hourlyRate: 25, agreedHours: 40, name: 'Rizki' },
@@ -86,38 +44,20 @@
         ];
 
         let appState = {
-            user: defaultUsers[0], // Default to Admin since login is disabled
+            user: defaultUsers[0],
             isDemo: true, 
             users: defaultUsers,
-            records: [], // Stores booking data
-            clients: [], // Unique list of clients for search
-            sidebarOpen: false, // For mobile responsiveness
-            currentDate: new Date() // Tracks the currently viewed month
+            records: [],
+            clients: [],
+            sidebarOpen: false,
+            currentDate: new Date()
         };
 
-        // Detect if we should use Firebase or Simulation
-        if (firebaseConfig.apiKey) {
-            appState.isDemo = false;
-            const app = initializeApp(firebaseConfig);
-            window.auth = getAuth(app);
-            window.db = getFirestore(app);
-            console.log("Firebase initialized.");
-        } else {
-            console.log("No Firebase config detected. Running in Simulation Mode.");
-        }
-
         // =========================================================================
-        // CORE LOGIC & CONTROLLERS
+        // CORE LOGIC
         // =========================================================================
 
         const Logic = {
-            // Login function kept for future auth integration, but UI bypasses it now
-            login: async (email, password) => {
-               // ... logic preserved ...
-               return { success: true };
-            },
-
-            // New: Quick Switcher for debugging/demo since login is removed
             switchUser: (email) => {
                 const user = appState.users.find(u => u.email === email);
                 if (user) {
@@ -127,7 +67,6 @@
                 }
             },
 
-            // Navigation for Month
             changeMonth: (offset) => {
                 const newDate = new Date(appState.currentDate);
                 newDate.setMonth(newDate.getMonth() + offset);
@@ -140,39 +79,29 @@
             updateRecord: (id, updatedData) => {
                 const index = appState.records.findIndex(r => r.id === id);
                 if (index !== -1) {
-                    // Update the record
                     appState.records[index] = {
                         ...appState.records[index],
                         ...updatedData,
-                        // Recalculate total if amounts changed
                         totalAmount: (parseFloat(updatedData.serviceAmount) || 0) + (parseFloat(updatedData.productAmount) || 0)
                     };
-                    
-                    // Add client if new name entered during edit
                     if (updatedData.clientName && !appState.clients.includes(updatedData.clientName)) {
                         appState.clients.push(updatedData.clientName);
                         appState.clients.sort();
                     }
-
                     UI.refreshStats();
-                    
-                    // Refresh appropriate table based on current view
                     if(window.currentTab === 'dashboard') UI.renderTodayTable();
                     if(window.currentTab === 'history') UI.renderHistoryTable();
                     if(window.currentTab === 'group') UI.renderGroupStats();
-                    
                     UI.showToast("Record updated successfully!");
                     UI.closeEditModal();
                 }
             },
 
             addRecord: (clientName, service, serviceAmount, productAmount, duration, entryType, isNew, isRebook) => {
-                // Add Client to Database if unique
                 if (clientName && !appState.clients.includes(clientName)) {
                     appState.clients.push(clientName);
-                    appState.clients.sort(); // Keep alphabetical
+                    appState.clients.sort();
                 }
-
                 const record = {
                     id: Date.now(),
                     therapistEmail: appState.user.email,
@@ -189,41 +118,18 @@
                 };
                 appState.records.push(record);
                 UI.refreshStats();
-                UI.renderTodayTable(); // Refresh today's table
-                
-                // Update client datalist immediately
-                const datalist = document.getElementById('clientOptions');
-                if (datalist && !Array.from(datalist.options).some(o => o.value === clientName)) {
-                     const option = document.createElement('option');
-                     option.value = clientName;
-                     datalist.appendChild(option);
-                }
-
+                if(window.currentTab === 'dashboard') UI.renderTodayTable();
                 UI.showToast("Record added successfully!");
+                UI.closeEntryModal();
             },
 
             getMetrics: (filterEmail = null, dateContext = new Date()) => {
-                let filteredRecords = appState.records;
-                let currentUserConfig = appState.user;
+                const emailToUse = filterEmail || appState.user.email;
+                let filteredRecords = appState.records.filter(r => r.therapistEmail === emailToUse);
+                let currentUserConfig = appState.users.find(u => u.email === emailToUse) || appState.user;
 
-                // 1. Filter by User
-                if (filterEmail) {
-                    // Viewing Specific User
-                    filteredRecords = appState.records.filter(r => r.therapistEmail === filterEmail);
-                    currentUserConfig = appState.users.find(u => u.email === filterEmail) || appState.user;
-                } 
-                else if (appState.user.role !== 'admin') {
-                    // Standard Therapist Viewing Self
-                    filteredRecords = appState.records.filter(r => r.therapistEmail === appState.user.email);
-                }
-                // Admin Viewing Global (No Filter): 
-                // filteredRecords = All Records
-                // currentUserConfig = Admin (Arianne)
-
-                // 2. Filter by Month/Year based on dateContext
                 const targetMonth = dateContext.getMonth();
                 const targetYear = dateContext.getFullYear();
-
                 filteredRecords = filteredRecords.filter(r => {
                     const rDate = new Date(r.date);
                     return rDate.getMonth() === targetMonth && rDate.getFullYear() === targetYear;
@@ -232,153 +138,64 @@
                 const totalRevenue = filteredRecords.reduce((sum, r) => sum + r.totalAmount, 0);
                 const serviceRevenue = filteredRecords.reduce((sum, r) => sum + (r.serviceAmount || 0), 0);
                 const productRevenue = filteredRecords.reduce((sum, r) => sum + (r.productAmount || 0), 0);
-                
-                // Target is based on the Current User Config (Arianne's target if Admin)
                 const monthlyTarget = (currentUserConfig.hourlyRate * currentUserConfig.agreedHours) * 4;
                 const percentageToTarget = monthlyTarget > 0 ? (totalRevenue / monthlyTarget) * 100 : 0;
-                
                 const totalClients = filteredRecords.length;
                 const rebookedClients = filteredRecords.filter(r => r.isRebook).length;
                 const rebookingRate = totalClients > 0 ? (rebookedClients / totalClients) * 100 : 0;
 
-                return {
-                    totalRevenue,
-                    serviceRevenue,
-                    productRevenue,
-                    monthlyTarget,
-                    percentageToTarget,
-                    rebookingRate,
-                    totalClients,
-                    rebookedClients // Added specific count
-                };
+                return { totalRevenue, serviceRevenue, productRevenue, monthlyTarget, percentageToTarget, rebookingRate, totalClients, rebookedClients };
             },
 
-            // New: Get Group Metrics (Sum of all users)
             getGroupMetrics: (dateContext = new Date()) => {
                 const targetMonth = dateContext.getMonth();
                 const targetYear = dateContext.getFullYear();
-
-                // Get all records for the month
                 const filteredRecords = appState.records.filter(r => {
                     const rDate = new Date(r.date);
                     return rDate.getMonth() === targetMonth && rDate.getFullYear() === targetYear;
                 });
-
                 const totalRevenue = filteredRecords.reduce((sum, r) => sum + r.totalAmount, 0);
                 const serviceRevenue = filteredRecords.reduce((sum, r) => sum + (r.serviceAmount || 0), 0);
                 const productRevenue = filteredRecords.reduce((sum, r) => sum + (r.productAmount || 0), 0);
-                
-                // Sum of ALL users' targets
-                const totalGroupTarget = appState.users.reduce((sum, u) => {
-                    return sum + ((u.hourlyRate * u.agreedHours) * 4);
-                }, 0);
-
-                const percentageToTarget = totalGroupTarget > 0 ? (totalRevenue / totalGroupTarget) * 100 : 0;
-                
-                const totalClients = filteredRecords.length;
-                const rebookedClients = filteredRecords.filter(r => r.isRebook).length;
-                const rebookingRate = totalClients > 0 ? (rebookedClients / totalClients) * 100 : 0;
-
-                // Calculate individual stats
+                const totalGroupTarget = appState.users.reduce((sum, u) => sum + ((u.hourlyRate * u.agreedHours) * 4), 0);
                 const individualStats = appState.users.map(user => {
                     const userRecords = filteredRecords.filter(r => r.therapistEmail === user.email);
                     const userTotalRev = userRecords.reduce((sum, r) => sum + r.totalAmount, 0);
-                    const userServiceRev = userRecords.reduce((sum, r) => sum + (r.serviceAmount || 0), 0);
-                    const userProductRev = userRecords.reduce((sum, r) => sum + (r.productAmount || 0), 0);
                     const userTarget = (user.hourlyRate * user.agreedHours) * 4;
                     const userClients = userRecords.length;
                     const userRebooked = userRecords.filter(r => r.isRebook).length;
-                    const userRebookRate = userClients > 0 ? (userRebooked / userClients) * 100 : 0;
-                    
                     return {
-                        name: user.name,
-                        email: user.email,
-                        revenue: userTotalRev,
-                        serviceRevenue: userServiceRev,
-                        productRevenue: userProductRev,
-                        target: userTarget,
+                        name: user.name, revenue: userTotalRev, serviceRevenue: userRecords.reduce((sum, r) => sum + (r.serviceAmount || 0), 0),
+                        productRevenue: userRecords.reduce((sum, r) => sum + (r.productAmount || 0), 0),
                         targetPct: userTarget > 0 ? (userTotalRev / userTarget) * 100 : 0,
-                        clients: userClients,
-                        rebooked: userRebooked,
-                        rebookRate: userRebookRate
+                        clients: userClients, rebooked: userRebooked,
+                        rebookRate: userClients > 0 ? (userRebooked / userClients) * 100 : 0
                     };
                 });
-
-                return {
-                    totalRevenue,
-                    serviceRevenue,
-                    productRevenue,
-                    monthlyTarget: totalGroupTarget,
-                    percentageToTarget,
-                    rebookingRate,
-                    totalClients,
-                    rebookedClients, // Added specific count
-                    individualStats
-                };
+                return { totalRevenue, serviceRevenue, productRevenue, monthlyTarget: totalGroupTarget, percentageToTarget: totalGroupTarget > 0 ? (totalRevenue / totalGroupTarget) * 100 : 0, rebookingRate: filteredRecords.length > 0 ? (filteredRecords.filter(r => r.isRebook).length / filteredRecords.length) * 100 : 0, totalClients: filteredRecords.length, rebookedClients: filteredRecords.filter(r => r.isRebook).length, individualStats };
             },
 
             generateFakeData: () => {
                 const newRecords = [];
                 const durations = ["30m", "45m", "1h", "1h 30m", "2h"];
                 const fakeClients = ["Alice Smith", "Bob Jones", "Charlie Day", "Diana Prince", "Evan Wright"];
-                
-                // Add fake clients to DB
-                fakeClients.forEach(c => {
-                    if (!appState.clients.includes(c)) appState.clients.push(c);
-                });
-
+                fakeClients.forEach(c => { if (!appState.clients.includes(c)) appState.clients.push(c); });
                 const now = new Date();
-                const lastMonth = new Date();
-                lastMonth.setMonth(lastMonth.getMonth() - 1);
-
-                // 1. Generate 5 records specifically for TODAY
-                for(let i=0; i<5; i++) {
-                    const randomUser = appState.users[Math.floor(Math.random() * appState.users.length)];
-                    const client = fakeClients[Math.floor(Math.random() * fakeClients.length)];
-                    
-                    newRecords.push({
-                        id: Date.now() + i,
-                        therapistEmail: randomUser.email,
-                        clientName: client,
-                        service: SERVICES[Math.floor(Math.random() * SERVICES.length)],
-                        serviceAmount: Math.floor(Math.random() * 150) + 50,
-                        productAmount: Math.random() > 0.8 ? Math.floor(Math.random() * 50) + 10 : 0,
-                        totalAmount: 0,
-                        duration: durations[Math.floor(Math.random() * durations.length)],
-                        entryType: Math.random() > 0.8 ? 'service_product' : 'service',
-                        isNew: Math.random() > 0.5,
-                        isRebook: Math.random() > 0.6,
-                        date: now.toISOString() // Strictly today
-                    });
-                    newRecords[i].totalAmount = newRecords[i].serviceAmount + newRecords[i].productAmount;
-                }
-
-                // 2. Generate 25 records for history (Current Month & Last Month)
-                for(let i=5; i<30; i++) {
+                const lastMonth = new Date(); lastMonth.setMonth(lastMonth.getMonth() - 1);
+                for(let i=0; i<30; i++) {
                     const randomUser = appState.users[Math.floor(Math.random() * appState.users.length)];
                     const isCurrentMonth = Math.random() > 0.5;
                     const dateBase = isCurrentMonth ? now : lastMonth;
-                    // Random day in month (1-28)
                     const day = Math.floor(Math.random() * 28) + 1;
                     const recordDate = new Date(dateBase.getFullYear(), dateBase.getMonth(), day);
-                    const client = fakeClients[Math.floor(Math.random() * fakeClients.length)];
-
                     newRecords.push({
-                        id: Date.now() + i,
-                        therapistEmail: randomUser.email,
-                        clientName: client,
+                        id: Date.now() + i, therapistEmail: randomUser.email, clientName: fakeClients[Math.floor(Math.random() * fakeClients.length)],
                         service: SERVICES[Math.floor(Math.random() * SERVICES.length)],
                         serviceAmount: Math.floor(Math.random() * 150) + 50,
                         productAmount: Math.random() > 0.8 ? Math.floor(Math.random() * 50) + 10 : 0,
-                        totalAmount: 0, 
-                        duration: durations[Math.floor(Math.random() * durations.length)],
-                        entryType: Math.random() > 0.8 ? 'service_product' : 'service',
-                        isNew: Math.random() > 0.5,
-                        isRebook: Math.random() > 0.6,
-                        date: recordDate.toISOString()
+                        totalAmount: 0, duration: durations[Math.floor(Math.random() * durations.length)],
+                        entryType: 'service', isNew: Math.random() > 0.5, isRebook: Math.random() > 0.6, date: recordDate.toISOString()
                     });
-                    
-                    // Fix total amount
                     newRecords[i].totalAmount = newRecords[i].serviceAmount + newRecords[i].productAmount;
                 }
                 appState.records = [...appState.records, ...newRecords];
@@ -386,1104 +203,485 @@
                 if(window.currentTab === 'dashboard') UI.renderTodayTable();
                 if(window.currentTab === 'history') UI.renderHistoryTable();
                 if(window.currentTab === 'group') UI.renderGroupStats();
-                UI.showToast("Generated 30 fake records (5 Today + 25 Historical).");
-            },
-
-            saveAllConfigs: () => {
-                const rows = document.querySelectorAll('.config-row');
-                let updatedCount = 0;
-                
-                rows.forEach(row => {
-                    const email = row.dataset.email;
-                    const nameInput = row.querySelector('.input-name');
-                    const rateInput = row.querySelector('.input-rate');
-                    const hoursInput = row.querySelector('.input-hours');
-                    
-                    const userIndex = appState.users.findIndex(u => u.email === email);
-                    if (userIndex !== -1) {
-                        appState.users[userIndex].name = nameInput.value;
-                        appState.users[userIndex].hourlyRate = parseFloat(rateInput.value);
-                        appState.users[userIndex].agreedHours = parseFloat(hoursInput.value);
-                        updatedCount++;
-                    }
-                });
-
-                UI.showToast(`Updated configuration for ${updatedCount} users.`);
-            },
-
-            addUser: (email) => {
-                if (appState.users.find(u => u.email === email)) {
-                    UI.showToast("User already exists.", "error");
-                    return;
-                }
-                appState.users.push({
-                    email: email,
-                    role: 'therapist',
-                    hourlyRate: 0,
-                    agreedHours: 0,
-                    name: email.split('@')[0]
-                });
-                UI.showToast("User added to whitelist.");
-                UI.renderConfigTable();
+                UI.showToast("Generated 30 fake records.");
             }
         };
 
         // =========================================================================
-        // UI RENDERERS
+        // UI HELPERS
         // =========================================================================
 
         const UI = {
-            init: () => {
-                UI.renderDashboard();
-            },
-
+            init: () => { UI.renderDashboard(); },
             toggleSidebar: () => {
                 appState.sidebarOpen = !appState.sidebarOpen;
-                const sidebar = document.getElementById('sidebar');
-                if (appState.sidebarOpen) {
-                    sidebar.classList.remove('-translate-x-full');
-                } else {
-                    sidebar.classList.add('-translate-x-full');
-                }
+                document.getElementById('sidebar').classList.toggle('-translate-x-full', !appState.sidebarOpen);
+                document.getElementById('sidebar-overlay').classList.toggle('hidden', !appState.sidebarOpen);
             },
-
             toggleEntryFields: () => {
-                // Logic for the MAIN Add Entry Form
                 const entryType = document.querySelector('input[name="entryType"]:checked').value;
-                const serviceFields = document.getElementById('serviceFields');
-                const productFields = document.getElementById('productFields');
-                const durationFields = document.getElementById('durationFields');
-                // Checkboxes are generally always shown for simplicity, or we can toggle them too
-                
-                if (entryType === 'service') {
-                    serviceFields.classList.remove('hidden');
-                    durationFields.classList.remove('hidden');
-                    productFields.classList.add('hidden');
-                } else if (entryType === 'service_product') {
-                    serviceFields.classList.remove('hidden');
-                    durationFields.classList.remove('hidden');
-                    productFields.classList.remove('hidden');
-                } else if (entryType === 'product') {
-                    serviceFields.classList.add('hidden');
-                    durationFields.classList.add('hidden');
-                    productFields.classList.remove('hidden');
-                }
+                document.getElementById('serviceFields').classList.toggle('hidden', entryType === 'product');
+                document.getElementById('durationFields').classList.toggle('hidden', entryType === 'product');
+                document.getElementById('productFields').classList.toggle('hidden', entryType === 'service');
             },
-
-            // Logic for the EDIT Modal Form
             toggleEditEntryFields: () => {
                 const entryType = document.querySelector('input[name="editEntryType"]:checked').value;
-                const serviceFields = document.getElementById('editServiceFields');
-                const productFields = document.getElementById('editProductFields');
-                const durationFields = document.getElementById('editDurationFields');
-
-                if (entryType === 'service') {
-                    serviceFields.classList.remove('hidden');
-                    durationFields.classList.remove('hidden');
-                    productFields.classList.add('hidden');
-                } else if (entryType === 'service_product') {
-                    serviceFields.classList.remove('hidden');
-                    durationFields.classList.remove('hidden');
-                    productFields.classList.remove('hidden');
-                } else if (entryType === 'product') {
-                    serviceFields.classList.add('hidden');
-                    durationFields.classList.add('hidden');
-                    productFields.classList.remove('hidden');
-                }
+                document.getElementById('editServiceFields').classList.toggle('hidden', entryType === 'product');
+                document.getElementById('editDurationFields').classList.toggle('hidden', entryType === 'product');
+                document.getElementById('editProductFields').classList.toggle('hidden', entryType === 'service');
             },
-
+            openEntryModal: () => {
+                document.getElementById('entryModal').classList.remove('hidden');
+            },
+            closeEntryModal: () => {
+                document.getElementById('entryModal').classList.add('hidden');
+                document.getElementById('dataEntryForm').reset();
+                UI.toggleEntryFields();
+            },
             openEditModal: (id) => {
-                const record = appState.records.find(r => r.id === id);
-                if (!record) return;
-
-                const modal = document.getElementById('editModal');
+                const r = appState.records.find(rec => rec.id === id);
+                if (!r) return;
                 const form = document.getElementById('editForm');
-
-                // Populate ID
                 form.dataset.id = id;
-
-                // Populate Entry Type & Trigger Toggle
-                const radios = form.querySelectorAll('input[name="editEntryType"]');
-                radios.forEach(r => {
-                    if (r.value === record.entryType) r.checked = true;
-                });
+                form.querySelectorAll('input[name="editEntryType"]').forEach(radio => { if(radio.value === r.entryType) radio.checked = true; });
                 UI.toggleEditEntryFields();
-
-                // Populate Fields
-                form.editClientName.value = record.clientName || '';
-                form.editService.value = record.service === 'Product Sale' ? '' : record.service; // Reset select if product only
-                if(record.entryType !== 'product') form.editService.value = record.service;
-                
-                form.editAmount.value = record.serviceAmount || 0;
-                form.editProductAmount.value = record.productAmount || 0;
-                
-                // Parse Date for Input (YYYY-MM-DD)
-                const dateObj = new Date(record.date);
-                const dateStr = dateObj.toISOString().split('T')[0];
-                form.editDate.value = dateStr;
-
-                // Checkboxes
-                form.editIsNew.checked = record.isNew;
-                form.editIsRebook.checked = record.isRebook;
-
-                // Parse Duration String back to Hours/Minutes
+                form.editClientName.value = r.clientName || '';
+                form.editService.value = r.service === 'Product Sale' ? '' : r.service;
+                form.editAmount.value = r.serviceAmount || 0;
+                form.editProductAmount.value = r.productAmount || 0;
+                form.editDate.value = new Date(r.date).toISOString().split('T')[0];
+                form.editIsNew.checked = r.isNew;
+                form.editIsRebook.checked = r.isRebook;
                 let h = 0, m = 0;
-                if (record.duration) {
-                    const hMatch = record.duration.match(/(\d+)h/);
-                    const mMatch = record.duration.match(/(\d+)m/);
-                    if (hMatch) h = parseInt(hMatch[1]);
-                    if (mMatch) m = parseInt(mMatch[1]);
+                if (r.duration) {
+                    const hm = r.duration.match(/(\d+)h/); const mm = r.duration.match(/(\d+)m/);
+                    if (hm) h = parseInt(hm[1]); if (mm) m = parseInt(mm[1]);
                 }
-                form.editDurationHours.value = h;
-                form.editDurationMinutes.value = m;
-
-                modal.classList.remove('hidden');
+                form.editDurationHours.value = h; form.editDurationMinutes.value = m;
+                document.getElementById('editModal').classList.remove('hidden');
             },
-
-            closeEditModal: () => {
-                document.getElementById('editModal').classList.add('hidden');
-            },
-
-            showToast: (message, type = 'success') => {
+            closeEditModal: () => { document.getElementById('editModal').classList.add('hidden'); },
+            showToast: (m, t = 'success') => {
                 const toast = document.createElement('div');
-                toast.className = `fixed bottom-5 right-5 px-6 py-3 rounded-lg shadow-lg text-white transform transition-all duration-300 translate-y-10 opacity-0 z-50 ${type === 'error' ? 'bg-red-500' : 'bg-teal-600'}`;
-                toast.textContent = message;
-                document.body.appendChild(toast);
+                toast.className = `fixed bottom-5 right-5 px-6 py-3 rounded-lg shadow-lg text-white z-50 transform transition-all duration-300 translate-y-10 opacity-0 ${t === 'error' ? 'bg-red-500' : 'bg-teal-600'}`;
+                toast.textContent = m; document.body.appendChild(toast);
                 setTimeout(() => toast.classList.remove('translate-y-10', 'opacity-0'), 10);
-                setTimeout(() => {
-                    toast.classList.add('translate-y-10', 'opacity-0');
-                    setTimeout(() => toast.remove(), 300);
-                }, 3000);
+                setTimeout(() => { toast.classList.add('translate-y-10', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 3000);
             },
-
-            // Helper for responsive calculation in Config Table
             calculateRowTarget: (input) => {
                 const row = input.closest('tr');
                 const rate = parseFloat(row.querySelector('.input-rate').value) || 0;
                 const hours = parseFloat(row.querySelector('.input-hours').value) || 0;
-                // Formula: (Weekly Rate * Weekly Hours) * 4 Weeks
-                const target = (rate * hours) * 4;
-                row.querySelector('.target-cell').textContent = '$' + target.toLocaleString();
+                row.querySelector('.target-cell').textContent = '$' + ((rate * hours) * 4).toLocaleString();
             },
 
             renderDashboard: () => {
                 const isAdmin = appState.user.role === 'admin';
-                
                 document.body.innerHTML = `
                     <div class="min-h-screen bg-gray-50 flex font-inter overflow-hidden relative">
+                        <!-- NEW ENTRY MODAL -->
+                        <div id="entryModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+                            <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-y-auto max-h-[90vh]">
+                                <div class="p-4 border-b flex justify-between items-center bg-gray-50">
+                                    <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider">New Performance Entry</h3>
+                                    <button onclick="UI.closeEntryModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+                                </div>
+                                <form id="dataEntryForm" class="p-6 space-y-4">
+                                    <div class="flex flex-wrap gap-4 mb-2 pb-2 border-b border-gray-50">
+                                        <label class="flex items-center cursor-pointer"><input type="radio" name="entryType" value="service" checked onchange="UI.toggleEntryFields()"> <span class="ml-2 text-xs">Service Only</span></label>
+                                        <label class="flex items-center cursor-pointer"><input type="radio" name="entryType" value="service_product" onchange="UI.toggleEntryFields()"> <span class="ml-2 text-xs">With Product/s</span></label>
+                                        <label class="flex items-center cursor-pointer"><input type="radio" name="entryType" value="product" onchange="UI.toggleEntryFields()"> <span class="ml-2 text-xs">Product Only</span></label>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">Client Name</label>
+                                        <input type="text" name="clientName" list="clientOptions" required class="w-full rounded border p-2 text-xs shadow-sm focus:ring-1 focus:ring-teal-500 outline-none">
+                                        <datalist id="clientOptions">${appState.clients.map(c => `<option value="${c}">`).join('')}</datalist>
+                                    </div>
+                                    <div id="serviceFields" class="space-y-4">
+                                        <div>
+                                            <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">Service Name</label>
+                                            <select name="service" class="w-full rounded border p-2 text-xs shadow-sm focus:ring-1 focus:ring-teal-500 outline-none">${SERVICES.map(s => `<option value="${s}">${s}</option>`).join('')}</select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">Service Amount ($)</label>
+                                            <input type="number" name="amount" step="0.01" class="w-full rounded border p-2 text-xs shadow-sm focus:ring-1 focus:ring-teal-500 outline-none" placeholder="0.00">
+                                        </div>
+                                    </div>
+                                    <div id="productFields" class="hidden">
+                                        <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">Product Amount ($)</label>
+                                        <input type="number" name="productAmount" step="0.01" class="w-full rounded border p-2 text-xs bg-blue-50 shadow-sm focus:ring-1 focus:ring-teal-500 outline-none" placeholder="0.00">
+                                    </div>
+                                    <div id="durationFields">
+                                        <label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">Duration</label>
+                                        <div class="flex space-x-2">
+                                            <select name="durationHours" class="w-1/2 rounded border p-2 text-xs"><option value="0">0 hrs</option><option value="1" selected>1 hr</option><option value="2">2 hrs</option></select>
+                                            <select name="durationMinutes" class="w-1/2 rounded border p-2 text-xs"><option value="0">0 mins</option><option value="15">15 mins</option><option value="30">30 mins</option><option value="45">45 mins</option></select>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-4 pt-2">
+                                        <label class="flex items-center"><input type="checkbox" name="isNew" class="h-4 w-4 text-teal-600"> <span class="ml-2 text-xs">New Client?</span></label>
+                                        <label class="flex items-center"><input type="checkbox" name="isRebook" class="h-4 w-4 text-teal-600"> <span class="ml-2 text-xs">Did Rebook?</span></label>
+                                    </div>
+                                    <div class="pt-4 flex flex-col space-y-2">
+                                        <button type="submit" class="w-full py-3 bg-teal-600 text-white rounded text-xs font-bold uppercase tracking-wider hover:bg-teal-700 transition-colors shadow-md">Confirm & Add Entry</button>
+                                        <button type="button" onclick="UI.closeEntryModal()" class="w-full py-2 bg-gray-50 text-gray-500 rounded text-xs font-medium hover:bg-gray-100 transition-colors">Cancel</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
                         <!-- EDIT MODAL -->
                         <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
-                            <div class="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-y-auto max-h-[90vh]">
-                                <div class="p-6 border-b border-gray-100 flex justify-between items-center">
-                                    <h3 class="text-lg font-bold text-gray-900">Edit Record</h3>
-                                    <button onclick="UI.closeEditModal()" class="text-gray-400 hover:text-gray-600">
-                                        <i class="fas fa-times"></i>
-                                    </button>
+                            <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-y-auto max-h-[90vh]">
+                                <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                                    <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider">Update Record</h3>
+                                    <button onclick="UI.closeEditModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
                                 </div>
                                 <form id="editForm" class="p-6 space-y-4">
-                                    <!-- Entry Type -->
                                     <div class="flex flex-wrap gap-4 mb-4 pb-4 border-b border-gray-100">
-                                        <label class="flex items-center cursor-pointer">
-                                            <input type="radio" name="editEntryType" value="service" onchange="UI.toggleEditEntryFields()" class="rounded-full text-teal-600 focus:ring-teal-500 h-4 w-4 border-gray-300">
-                                            <span class="ml-2 text-sm font-medium text-gray-700">Service</span>
-                                        </label>
-                                        <label class="flex items-center cursor-pointer">
-                                            <input type="radio" name="editEntryType" value="service_product" onchange="UI.toggleEditEntryFields()" class="rounded-full text-teal-600 focus:ring-teal-500 h-4 w-4 border-gray-300">
-                                            <span class="ml-2 text-sm font-medium text-gray-700">With Product</span>
-                                        </label>
-                                        <label class="flex items-center cursor-pointer">
-                                            <input type="radio" name="editEntryType" value="product" onchange="UI.toggleEditEntryFields()" class="rounded-full text-teal-600 focus:ring-teal-500 h-4 w-4 border-gray-300">
-                                            <span class="ml-2 text-sm font-medium text-gray-700">Product Only</span>
-                                        </label>
+                                        <label class="flex items-center cursor-pointer"><input type="radio" name="editEntryType" value="service" onchange="UI.toggleEditEntryFields()" class="h-4 w-4 text-teal-600"> <span class="ml-2 text-xs">Service Only</span></label>
+                                        <label class="flex items-center cursor-pointer"><input type="radio" name="editEntryType" value="service_product" onchange="UI.toggleEditEntryFields()" class="h-4 w-4 text-teal-600"> <span class="ml-2 text-xs">With Product/s</span></label>
+                                        <label class="flex items-center cursor-pointer"><input type="radio" name="editEntryType" value="product" onchange="UI.toggleEditEntryFields()" class="h-4 w-4 text-teal-600"> <span class="ml-2 text-xs">Product Only</span></label>
                                     </div>
-
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                                        <input type="date" name="editDate" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm p-3 border">
-                                    </div>
-
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Client Name</label>
-                                        <input type="text" name="editClientName" list="clientOptions" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm p-3 border">
-                                    </div>
-
-                                    <!-- Service Fields -->
+                                    <div><label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">Date</label><input type="date" name="editDate" required class="w-full rounded border p-2 text-xs"></div>
+                                    <div><label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">Client Name</label><input type="text" name="editClientName" list="clientOptions" required class="w-full rounded border p-2 text-xs"></div>
                                     <div id="editServiceFields" class="space-y-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
-                                            <select name="editService" class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm p-3 border bg-white">
-                                                <option value="" disabled selected>Select a Service</option>
-                                                ${SERVICES.map(s => `<option value="${s}">${s}</option>`).join('')}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-1">Service Amount ($)</label>
-                                            <input type="number" name="editAmount" min="0" step="0.01" class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm p-3 border">
-                                        </div>
+                                        <div><label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">Service Name</label><select name="editService" class="w-full rounded border p-2 text-xs">${SERVICES.map(s => `<option value="${s}">${s}</option>`).join('')}</select></div>
+                                        <div><label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">Service Amount ($)</label><input type="number" name="editAmount" step="0.01" class="w-full rounded border p-2 text-xs"></div>
                                     </div>
-
-                                    <!-- Product Fields -->
-                                    <div id="editProductFields" class="hidden">
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Product Amount ($)</label>
-                                        <input type="number" name="editProductAmount" min="0" step="0.01" class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm p-3 border bg-blue-50">
-                                    </div>
-                                    
-                                    <!-- Duration Selector -->
-                                    <div id="editDurationFields">
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Duration</label>
-                                        <div class="flex space-x-2">
-                                            <div class="w-1/2">
-                                                <select name="editDurationHours" class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm p-3 border bg-white">
-                                                    <option value="0">0 hrs</option>
-                                                    <option value="1">1 hr</option>
-                                                    <option value="2">2 hrs</option>
-                                                    <option value="3">3 hrs</option>
-                                                    <option value="4">4 hrs</option>
-                                                    <option value="5">5 hrs</option>
-                                                    <option value="6">6 hrs</option>
-                                                    <option value="7">7 hrs</option>
-                                                    <option value="8">8 hrs</option>
-                                                </select>
-                                            </div>
-                                            <div class="w-1/2">
-                                                <select name="editDurationMinutes" class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm p-3 border bg-white">
-                                                    <option value="0">0 mins</option>
-                                                    <option value="15">15 mins</option>
-                                                    <option value="30">30 mins</option>
-                                                    <option value="45">45 mins</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="flex items-center space-x-4 pt-2">
-                                        <label class="flex items-center cursor-pointer">
-                                            <input type="checkbox" name="editIsNew" class="rounded text-teal-600 focus:ring-teal-500 h-5 w-5 border-gray-300">
-                                            <span class="ml-2 text-sm text-gray-700">New Client?</span>
-                                        </label>
-                                        <label class="flex items-center cursor-pointer">
-                                            <input type="checkbox" name="editIsRebook" class="rounded text-teal-600 focus:ring-teal-500 h-5 w-5 border-gray-300">
-                                            <span class="ml-2 text-sm text-gray-700">Did Rebook?</span>
-                                        </label>
-                                    </div>
-                                    <div class="pt-4 flex justify-end space-x-3">
-                                        <button type="button" onclick="UI.closeEditModal()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">Cancel</button>
-                                        <button type="submit" class="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800">Save Changes</button>
-                                    </div>
+                                    <div id="editProductFields" class="hidden"><div><label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">Product Amount ($)</label><input type="number" name="editProductAmount" step="0.01" class="w-full rounded border p-2 text-xs bg-blue-50"></div></div>
+                                    <div id="editDurationFields"><label class="block text-[10px] uppercase font-bold text-gray-400 mb-1">Duration</label><div class="flex space-x-2"><select name="editDurationHours" class="w-1/2 rounded border p-2 text-xs"><option value="0">0 hrs</option><option value="1">1 hr</option><option value="2">2 hrs</option></select><select name="editDurationMinutes" class="w-1/2 rounded border p-2 text-xs"><option value="0">0 mins</option><option value="15">15 mins</option><option value="30">30 mins</option><option value="45">45 mins</option></select></div></div>
+                                    <div class="flex items-center space-x-4 pt-2"><label class="flex items-center"><input type="checkbox" name="editIsNew" class="h-4 w-4"> <span class="ml-2 text-xs">New Client?</span></label><label class="flex items-center"><input type="checkbox" name="editIsRebook" class="h-4 w-4"> <span class="ml-2 text-xs">Did Rebook?</span></label></div>
+                                    <div class="pt-4 flex justify-end space-x-3"><button type="button" onclick="UI.closeEditModal()" class="px-4 py-2 text-xs bg-gray-100 rounded">Cancel</button><button type="submit" class="px-4 py-2 text-xs bg-black text-white rounded">Save Changes</button></div>
                                 </form>
                             </div>
                         </div>
 
                         <!-- Mobile Header -->
-                        <div class="md:hidden fixed top-0 w-full bg-black text-white z-20 flex items-center justify-between px-4 py-3">
-                            <h1 class="text-lg font-bold">TRB<span class="text-teal-400">.</span></h1>
-                            <button onclick="UI.toggleSidebar()" class="text-gray-300 focus:outline-none">
-                                <i class="fas fa-bars text-xl"></i>
-                            </button>
-                        </div>
-
+                        <div class="md:hidden fixed top-0 w-full bg-black text-white z-20 flex items-center justify-between px-4 py-3"><h1 class="text-lg font-bold">TRB<span class="text-teal-400">.</span></h1><button onclick="UI.toggleSidebar()" class="text-gray-300"><i class="fas fa-bars"></i></button></div>
+                        
                         <!-- Sidebar -->
-                        <div id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out bg-black text-white w-64 flex-shrink-0 z-30 flex flex-col h-full pt-16 md:pt-0">
-                            <div class="hidden md:block p-6 border-b border-gray-800">
-                                <h1 class="text-xl font-bold tracking-wider">TRB<span class="text-teal-400">.</span></h1>
-                                <p class="text-xs text-gray-400 mt-1">${appState.user.name}</p>
-                            </div>
-                            
+                        <div id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 bg-black text-white w-64 z-30 flex flex-col pt-16 md:pt-0">
+                            <div class="hidden md:block p-6 border-b border-gray-800"><h1 class="text-xl font-bold tracking-wider">TRB<span class="text-teal-400">.</span></h1><p class="text-xs text-gray-400 mt-1 uppercase tracking-tighter">${appState.user.name}</p></div>
                             <nav class="p-4 space-y-2 flex-1">
-                                <button onclick="UI.switchTab('dashboard'); UI.toggleSidebar()" id="nav-dashboard" class="w-full text-left px-4 py-3 rounded-lg bg-gray-900 text-teal-400 font-medium transition-colors">
-                                    <i class="fas fa-chart-pie mr-3"></i> Dashboard
-                                </button>
-                                <button onclick="UI.switchTab('history'); UI.toggleSidebar()" id="nav-history" class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-900 text-gray-400 hover:text-white transition-colors">
-                                    <i class="fas fa-history mr-3"></i> History
-                                </button>
-                                <button onclick="UI.switchTab('group'); UI.toggleSidebar()" id="nav-group" class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-900 text-gray-400 hover:text-white transition-colors">
-                                    <i class="fas fa-users mr-3"></i> Group
-                                </button>
-                                ${isAdmin ? `
-                                <button onclick="UI.switchTab('config'); UI.toggleSidebar()" id="nav-config" class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-900 text-gray-400 hover:text-white transition-colors">
-                                    <i class="fas fa-users-cog mr-3"></i> Configuration
-                                </button>
-                                ` : ''}
+                                <button onclick="UI.switchTab('dashboard');" id="nav-dashboard" class="w-full text-left px-4 py-3 rounded-lg bg-gray-900 text-teal-400 font-medium transition-colors">Dashboard</button>
+                                <button onclick="UI.switchTab('history');" id="nav-history" class="w-full text-left px-4 py-3 rounded-lg text-gray-400 transition-colors">History</button>
+                                <button onclick="UI.switchTab('group');" id="nav-group" class="w-full text-left px-4 py-3 rounded-lg text-gray-400 transition-colors">Group</button>
+                                ${isAdmin ? `<button onclick="UI.switchTab('config');" id="nav-config" class="w-full text-left px-4 py-3 rounded-lg text-gray-400 transition-colors">Configuration</button>` : ''}
                             </nav>
-
-                            <!-- Debug / User Switcher -->
-                            <div class="p-4 border-t border-gray-800">
-                                <label class="block text-xs text-gray-500 mb-2 uppercase tracking-wide font-bold">Switch User (Debug)</label>
-                                <select onchange="Logic.switchUser(this.value)" class="w-full bg-gray-900 text-gray-300 text-xs rounded border border-gray-700 p-2 focus:border-teal-500 focus:outline-none">
-                                    ${appState.users.map(u => `<option value="${u.email}" ${appState.user.email === u.email ? 'selected' : ''}>${u.name} (${u.role})</option>`).join('')}
-                                </select>
-                            </div>
+                            <div class="p-4 border-t border-gray-800"><label class="block text-[10px] text-gray-500 mb-2 uppercase font-bold tracking-widest">Switch Profile</label><select onchange="Logic.switchUser(this.value)" class="w-full bg-gray-900 text-gray-300 text-xs rounded p-2 border border-gray-700">${appState.users.map(u => `<option value="${u.email}" ${appState.user.email === u.email ? 'selected' : ''}>${u.name}</option>`).join('')}</select></div>
                         </div>
 
-                        <!-- Overlay for mobile sidebar -->
-                        <div onclick="UI.toggleSidebar()" class="md:hidden fixed inset-0 bg-black bg-opacity-50 z-10 ${appState.sidebarOpen ? 'block' : 'hidden'}" id="sidebar-overlay"></div>
-
-                        <!-- Main Content -->
+                        <div onclick="UI.toggleSidebar()" class="md:hidden fixed inset-0 bg-black bg-opacity-50 z-10 hidden" id="sidebar-overlay"></div>
+                        
                         <div class="flex-1 overflow-y-auto h-screen pt-14 md:pt-0 w-full">
-                            <!-- Top Bar -->
                             <header class="bg-white shadow-sm sticky top-0 z-10">
                                 <div class="px-6 py-4 flex justify-between items-center">
-                                    <h2 class="text-lg font-semibold text-gray-800" id="page-title">Performance Overview</h2>
-                                    <button onclick="Logic.generateFakeData()" class="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded hover:bg-gray-200 border border-gray-200 transition-colors">
-                                        <i class="fas fa-database mr-1"></i> Seed Data
-                                    </button>
+                                    <h2 class="text-lg font-semibold text-gray-800" id="page-title">My Performance</h2>
+                                    <div class="flex space-x-2">
+                                        <button onclick="Logic.generateFakeData()" class="text-[10px] font-bold uppercase bg-gray-50 px-3 py-1 rounded border hover:bg-gray-100 transition-colors">Seed Data</button>
+                                        <button onclick="UI.openEntryModal()" class="text-[10px] font-bold uppercase bg-teal-600 text-white px-4 py-1.5 rounded shadow hover:bg-teal-700 transition-colors">+ Add New Entry</button>
+                                    </div>
                                 </div>
                             </header>
-
-                            <main class="p-4 md:p-8" id="main-content">
-                                <!-- Dynamic Content Injected Here -->
-                            </main>
+                            <main class="p-4 md:p-8" id="main-content"></main>
                         </div>
                     </div>
                 `;
+                
+                // Set up submission logic for new entry
+                document.getElementById('dataEntryForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const fd = new FormData(e.target);
+                    const entryType = fd.get('entryType');
+                    const sa = parseFloat(fd.get('amount') || 0);
+                    const pa = parseFloat(fd.get('productAmount') || 0);
+                    const h = parseInt(fd.get('durationHours') || 0);
+                    const m = parseInt(fd.get('durationMinutes') || 0);
+                    if (entryType !== 'product' && h === 0 && m === 0) { UI.showToast("Please select a valid duration.", "error"); return; }
+                    if ((entryType === 'product' || entryType === 'service_product') && pa <= 0) { UI.showToast("Enter valid product amount.", "error"); return; }
+                    let d = ""; if (h > 0) d += `${h}h `; if (m > 0 || h == 0) d += `${m}m`;
+                    Logic.addRecord(fd.get('clientName'), fd.get('service'), sa, pa, d.trim(), entryType, fd.get('isNew') === 'on', fd.get('isRebook') === 'on');
+                });
 
-                // Handle Overlay logic dynamically
-                const overlay = document.getElementById('sidebar-overlay');
-                const originalToggle = UI.toggleSidebar;
-                UI.toggleSidebar = () => {
-                   originalToggle();
-                   if (appState.sidebarOpen) {
-                       overlay.classList.remove('hidden');
-                   } else {
-                       overlay.classList.add('hidden');
-                   }
-                }
+                // Set up submission logic for edit form
+                document.getElementById('editForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const fd = new FormData(e.target);
+                    const id = parseInt(e.target.dataset.id);
+                    const entryType = fd.get('editEntryType');
+                    const sa = parseFloat(fd.get('editAmount') || 0);
+                    const pa = parseFloat(fd.get('editProductAmount') || 0);
+                    const h = parseInt(fd.get('editDurationHours') || 0);
+                    const m = parseInt(fd.get('editDurationMinutes') || 0);
+                    if (entryType !== 'product' && h === 0 && m === 0) { UI.showToast("Please select a valid duration.", "error"); return; }
+                    if ((entryType === 'product' || entryType === 'service_product') && pa <= 0) { UI.showToast("Enter valid product amount.", "error"); return; }
+                    let d = ""; if (h > 0) d += `${h}h `; if (m > 0 || h == 0) d += `${m}m`;
+                    const updatedData = {
+                        date: new Date(fd.get('editDate')).toISOString(),
+                        clientName: fd.get('editClientName'),
+                        service: entryType === 'product' ? 'Product Sale' : fd.get('editService'),
+                        serviceAmount: sa, productAmount: pa,
+                        duration: entryType === 'product' ? null : d.trim(),
+                        entryType,
+                        isNew: fd.get('editIsNew') === 'on',
+                        isRebook: fd.get('editIsRebook') === 'on'
+                    };
+                    Logic.updateRecord(id, updatedData);
+                });
 
-                // Initialize View
                 UI.switchTab('dashboard');
             },
 
             switchTab: (tabName) => {
                 window.currentTab = tabName;
-                const isAdmin = appState.user.role === 'admin';
-
-                // Update Nav Styling
-                const navItems = ['nav-dashboard', 'nav-history', 'nav-group', 'nav-config'];
-                navItems.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) {
-                        if (id === `nav-${tabName}`) {
-                            el.classList.add('bg-gray-900', 'text-teal-400');
-                            el.classList.remove('text-gray-400');
-                        } else {
-                            el.classList.remove('bg-gray-900', 'text-teal-400');
-                            el.classList.add('text-gray-400');
-                        }
-                    }
+                document.querySelectorAll('nav button').forEach(b => {
+                    b.classList.toggle('bg-gray-900', b.id === `nav-${tabName}`);
+                    b.classList.toggle('text-teal-400', b.id === `nav-${tabName}`);
                 });
-
-                const mainContent = document.getElementById('main-content');
-                
+                const main = document.getElementById('main-content');
                 if (tabName === 'dashboard') {
-                    // CHANGED: Title is now 'My Performance' for everyone, distinguishing it from Group view
                     document.getElementById('page-title').textContent = 'My Performance';
-                    mainContent.innerHTML = `
-                        <!-- Stats Grid with Graph -->
-                        <div id="stats-container">
-                            <!-- Injected via JS -->
-                        </div>
-
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            <!-- Data Entry (Left, 1 col) -->
-                            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                                <h3 class="text-lg font-semibold text-gray-900 mb-4">New Entry</h3>
-                                <form id="dataEntryForm" class="space-y-4">
-                                    
-                                    <!-- Entry Type Radios -->
-                                    <div class="flex flex-wrap gap-4 mb-4 pb-4 border-b border-gray-100">
-                                        <label class="flex items-center cursor-pointer">
-                                            <input type="radio" name="entryType" value="service" checked onchange="UI.toggleEntryFields()" class="rounded-full text-teal-600 focus:ring-teal-500 h-4 w-4 border-gray-300">
-                                            <span class="ml-2 text-sm font-medium text-gray-700">Service Only</span>
-                                        </label>
-                                        <label class="flex items-center cursor-pointer">
-                                            <input type="radio" name="entryType" value="service_product" onchange="UI.toggleEntryFields()" class="rounded-full text-teal-600 focus:ring-teal-500 h-4 w-4 border-gray-300">
-                                            <span class="ml-2 text-sm font-medium text-gray-700">With Product/s</span>
-                                        </label>
-                                        <label class="flex items-center cursor-pointer">
-                                            <input type="radio" name="entryType" value="product" onchange="UI.toggleEntryFields()" class="rounded-full text-teal-600 focus:ring-teal-500 h-4 w-4 border-gray-300">
-                                            <span class="ml-2 text-sm font-medium text-gray-700">Product Only</span>
-                                        </label>
-                                    </div>
-
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Client Name</label>
-                                        <input type="text" name="clientName" list="clientOptions" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm p-3 border" placeholder="Search or Enter Client Name" autocomplete="off">
-                                        <datalist id="clientOptions">
-                                            ${appState.clients.map(c => `<option value="${c}">`).join('')}
-                                        </datalist>
-                                    </div>
-
-                                    <!-- Service Fields (Toggleable) -->
-                                    <div id="serviceFields" class="space-y-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
-                                            <select name="service" class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm p-3 border bg-white">
-                                                <option value="" disabled selected>Select a Service</option>
-                                                ${SERVICES.map(s => `<option value="${s}">${s}</option>`).join('')}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-1">Service Amount ($)</label>
-                                            <input type="number" name="amount" min="0" step="0.01" class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm p-3 border" placeholder="0.00">
-                                        </div>
-                                    </div>
-
-                                    <!-- Product Fields (Toggleable) -->
-                                    <div id="productFields" class="hidden">
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Product Amount ($)</label>
-                                        <input type="number" name="productAmount" min="0" step="0.01" class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm p-3 border bg-blue-50" placeholder="0.00">
-                                    </div>
-                                    
-                                    <!-- Duration Selector (Toggleable) -->
-                                    <div id="durationFields">
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Duration</label>
-                                        <div class="flex space-x-2">
-                                            <div class="w-1/2">
-                                                <select name="durationHours" class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm p-3 border bg-white">
-                                                    <option value="0">0 hrs</option>
-                                                    <option value="1" selected>1 hr</option>
-                                                    <option value="2">2 hrs</option>
-                                                    <option value="3">3 hrs</option>
-                                                    <option value="4">4 hrs</option>
-                                                    <option value="5">5 hrs</option>
-                                                    <option value="6">6 hrs</option>
-                                                    <option value="7">7 hrs</option>
-                                                    <option value="8">8 hrs</option>
-                                                </select>
-                                            </div>
-                                            <div class="w-1/2">
-                                                <select name="durationMinutes" class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm p-3 border bg-white">
-                                                    <option value="0">0 mins</option>
-                                                    <option value="15">15 mins</option>
-                                                    <option value="30">30 mins</option>
-                                                    <option value="45">45 mins</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div id="checkBoxes" class="flex items-center space-x-4 pt-2">
-                                        <label class="flex items-center cursor-pointer">
-                                            <input type="checkbox" name="isNew" class="rounded text-teal-600 focus:ring-teal-500 h-5 w-5 border-gray-300">
-                                            <span class="ml-2 text-sm text-gray-700">New Client?</span>
-                                        </label>
-                                        <label class="flex items-center cursor-pointer">
-                                            <input type="checkbox" name="isRebook" class="rounded text-teal-600 focus:ring-teal-500 h-5 w-5 border-gray-300">
-                                            <span class="ml-2 text-sm text-gray-700">Did Rebook?</span>
-                                        </label>
-                                    </div>
-                                    <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors">
-                                        Add Record
-                                    </button>
-                                </form>
+                    main.innerHTML = `
+                        <div id="stats-container"></div>
+                        <div class="bg-white rounded-xl border p-6 flex flex-col shadow-sm">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-sm font-bold text-gray-900">Today's Activity</h3>
+                                <button onclick="UI.openEntryModal()" class="text-[10px] font-bold text-teal-600 hover:text-teal-700 uppercase">+ Add Record</button>
                             </div>
-
-                            <!-- Recent Transactions (Right, 2 cols) -->
-                            <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col">
-                                <h3 class="text-lg font-semibold text-gray-900 mb-4">Today's Activity</h3>
-                                <div class="flex-1 overflow-x-auto">
-                                    <table class="min-w-full divide-y divide-gray-200">
-                                        <thead class="bg-gray-50">
-                                            <tr>
-                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service/Item</th>
-                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                                ${isAdmin ? '<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>' : ''}
-                                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                                                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="bg-white divide-y divide-gray-200" id="recent-table-body">
-                                            <!-- Injected via JS -->
-                                        </tbody>
-                                    </table>
-                                </div>
+                            <div class="flex-1 overflow-x-auto">
+                                <table class="min-w-full divide-y">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-2 py-2 text-left text-[10px] font-bold text-gray-400 uppercase">Date</th>
+                                            <th class="px-2 py-2 text-left text-[10px] font-bold text-gray-400 uppercase">Client</th>
+                                            <th class="px-2 py-2 text-left text-[10px] font-bold text-gray-400 uppercase">Service/Item</th>
+                                            <th class="px-2 py-2 text-right text-[10px] font-bold text-gray-400 uppercase">Total</th>
+                                            <th class="px-2 py-2 text-center text-[10px] font-bold text-gray-400 uppercase">Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="recent-table-body" class="divide-y"></tbody>
+                                </table>
                             </div>
-                        </div>
-                    `;
-
-                    // Bind Form
-                    document.getElementById('dataEntryForm').addEventListener('submit', (e) => {
-                        e.preventDefault();
-                        const fd = new FormData(e.target);
-                        const entryType = fd.get('entryType');
-                        
-                        // Get numerical values for validation
-                        const amount = parseFloat(fd.get('amount') || 0);
-                        const productAmount = parseFloat(fd.get('productAmount') || 0);
-                        const hours = parseInt(fd.get('durationHours') || 0);
-                        const mins = parseInt(fd.get('durationMinutes') || 0);
-
-                        // Validation: STRICT check on Duration for Services
-                        if (entryType !== 'product') {
-                            if (hours === 0 && mins === 0) {
-                                UI.showToast("Please select a valid duration.", "error");
-                                return;
-                            }
-                            if (fd.get('service') === null) {
-                                UI.showToast("Please select a service.", "error");
-                                return;
-                            }
-                        }
-
-                        // Validate Amounts
-                        if ((entryType === 'product' || entryType === 'service_product') && productAmount <= 0) {
-                            UI.showToast("Please enter a valid product amount.", "error");
-                            return;
-                        }
-
-                        // Construct Duration String
-                        let durationStr = "";
-                        if (hours > 0) durationStr += `${hours}h `;
-                        if (mins > 0 || hours == 0) durationStr += `${mins}m`;
-                        
-                        Logic.addRecord(
-                            fd.get('clientName'),
-                            fd.get('service'), 
-                            amount,
-                            productAmount,
-                            durationStr.trim(),
-                            entryType,
-                            fd.get('isNew') === 'on', 
-                            fd.get('isRebook') === 'on'
-                        );
-                        e.target.reset();
-                        // Reset visibility to default
-                        document.querySelector('input[value="service"]').checked = true;
-                        UI.toggleEntryFields();
-                    });
-
-                    // Bind Edit Form
-                    document.getElementById('editForm').addEventListener('submit', (e) => {
-                        e.preventDefault();
-                        const fd = new FormData(e.target);
-                        const id = parseInt(e.target.dataset.id);
-                        const entryType = fd.get('editEntryType');
-                        
-                        const serviceAmount = parseFloat(fd.get('editAmount') || 0);
-                        const productAmount = parseFloat(fd.get('editProductAmount') || 0);
-                        const hours = parseInt(fd.get('editDurationHours') || 0);
-                        const mins = parseInt(fd.get('editDurationMinutes') || 0);
-
-                        // Basic Validation (Matches Add Record)
-                        if (entryType !== 'product') {
-                            if (hours === 0 && mins === 0) {
-                                UI.showToast("Please select a valid duration.", "error");
-                                return;
-                            }
-                        }
-                        if ((entryType === 'product' || entryType === 'service_product') && productAmount <= 0) {
-                            UI.showToast("Please enter a valid product amount.", "error");
-                            return;
-                        }
-
-                        let durationStr = "";
-                        if (hours > 0) durationStr += `${hours}h `;
-                        if (mins > 0 || hours == 0) durationStr += `${mins}m`;
-
-                        const updatedData = {
-                            date: new Date(fd.get('editDate')).toISOString(),
-                            clientName: fd.get('editClientName'),
-                            service: entryType === 'product' ? 'Product Sale' : fd.get('editService'),
-                            serviceAmount,
-                            productAmount,
-                            duration: entryType === 'product' ? null : durationStr.trim(),
-                            entryType,
-                            isNew: fd.get('editIsNew') === 'on',
-                            isRebook: fd.get('editIsRebook') === 'on'
-                        };
-
-                        Logic.updateRecord(id, updatedData);
-                    });
-
-                    // Initial Data Load
-                    UI.refreshStats();
-                    UI.renderTodayTable();
-
+                        </div>`;
+                    UI.refreshStats(); UI.renderTodayTable();
                 } else if (tabName === 'history') {
                     document.getElementById('page-title').textContent = 'History';
-                    mainContent.innerHTML = `
-                         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col">
-                            <div class="flex justify-between items-center mb-6">
-                                <h3 class="text-lg font-semibold text-gray-900">Monthly Records</h3>
-                                <!-- Month Navigation -->
-                                <div class="flex items-center space-x-2 bg-gray-50 rounded-lg p-1 border border-gray-100">
-                                    <button onclick="Logic.changeMonth(-1)" class="p-1.5 hover:bg-white rounded-md text-gray-500 hover:text-teal-600 transition-all shadow-sm hover:shadow">
-                                        <i class="fas fa-chevron-left text-xs"></i>
-                                    </button>
-                                    <span class="text-xs font-bold text-gray-700 w-32 text-center select-none uppercase tracking-wide">
-                                        ${appState.currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                                    </span>
-                                    <button onclick="Logic.changeMonth(1)" class="p-1.5 hover:bg-white rounded-md text-gray-500 hover:text-teal-600 transition-all shadow-sm hover:shadow">
-                                        <i class="fas fa-chevron-right text-xs"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="overflow-x-auto">
-                                <table class="min-w-full divide-y divide-gray-200">
-                                    <thead class="bg-gray-50">
-                                        <tr>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service/Item</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                            ${isAdmin ? '<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>' : ''}
-                                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="bg-white divide-y divide-gray-200" id="history-table-body">
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    `;
+                    main.innerHTML = `<div class="bg-white rounded-xl border p-6 flex flex-col shadow-sm"><div class="flex justify-between items-center mb-6"><h3 class="text-sm font-bold text-gray-900">Monthly Records</h3><div class="flex items-center space-x-1 bg-gray-50 rounded p-0.5 border"><button onclick="Logic.changeMonth(-1)" class="p-1 hover:bg-white rounded"><i class="fas fa-chevron-left text-[10px]"></i></button><span class="text-[10px] font-bold w-24 text-center select-none uppercase" id="history-month-display"></span><button onclick="Logic.changeMonth(1)" class="p-1 hover:bg-white rounded"><i class="fas fa-chevron-right text-[10px]"></i></button></div></div><div class="overflow-x-auto"><table class="min-w-full divide-y"><thead class="bg-gray-50"><tr><th class="px-2 py-2 text-left text-[10px] font-bold text-gray-400 uppercase">Date</th><th class="px-2 py-2 text-left text-[10px] font-bold text-gray-400 uppercase">Client</th><th class="px-2 py-2 text-left text-[10px] font-bold text-gray-400 uppercase">Service/Item</th><th class="px-2 py-2 text-right text-[10px] font-bold text-gray-400 uppercase">Total</th><th class="px-2 py-2 text-center text-[10px] font-bold text-gray-400 uppercase">Details</th></tr></thead><tbody id="history-table-body" class="divide-y"></tbody></table></div></div>`;
                     UI.renderHistoryTable();
-
                 } else if (tabName === 'group') {
                     document.getElementById('page-title').textContent = 'Group Performance';
-                    mainContent.innerHTML = `
-                         <div id="group-stats-container">
-                            <!-- Injected via JS -->
-                         </div>
-                    `;
+                    main.innerHTML = `<div id="group-stats-container"></div>`;
                     UI.renderGroupStats();
-                
-                } else if (tabName === 'config' && isAdmin) {
-                    document.getElementById('page-title').textContent = 'Therapist Configuration';
-                    mainContent.innerHTML = `
-                        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div class="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                <h3 class="text-lg font-medium text-gray-900">User Settings</h3>
-                                
-                                <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                                    <div class="flex gap-2">
-                                        <input type="email" id="newUserEmail" placeholder="New user email" class="border rounded px-3 py-2 text-sm flex-grow">
-                                        <button onclick="UI.handleAddUser()" class="bg-gray-200 text-gray-800 px-3 py-2 rounded text-sm hover:bg-gray-300 font-medium whitespace-nowrap">Add User</button>
-                                    </div>
-                                    <button onclick="Logic.saveAllConfigs()" class="bg-teal-600 text-white px-4 py-2 rounded text-sm hover:bg-teal-700 shadow-sm font-medium whitespace-nowrap w-full md:w-auto">
-                                        <i class="fas fa-save mr-2"></i>Save Changes
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="overflow-x-auto">
-                                <table class="min-w-full divide-y divide-gray-200">
-                                    <thead class="bg-gray-50">
-                                        <tr>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User Email</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Display Name</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hourly Rate ($)</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Weekly Hours</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Target</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="bg-white divide-y divide-gray-200" id="config-table-body">
-                                        <!-- Config Rows -->
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div class="mt-4 bg-blue-50 text-blue-800 p-4 rounded-lg text-sm border border-blue-100">
-                            <div class="flex items-start">
-                                <i class="fas fa-info-circle mt-0.5 mr-2"></i> 
-                                <div>
-                                    <p class="font-semibold">Target Formula:</p>
-                                    <p>(Hourly Rate * Weekly Hours) * 4 Weeks</p>
-                                </div>
-                            </div>
-                        </div>
-                    `;
+                } else if (tabName === 'config') {
+                    document.getElementById('page-title').textContent = 'Configuration';
+                    main.innerHTML = `<div class="bg-white rounded-xl border shadow-sm overflow-hidden"><div class="p-6 border-b flex justify-between items-center"><h3 class="text-sm font-bold">User Settings</h3><div class="flex space-x-2"><input type="email" id="newUserEmail" placeholder="New user email" class="border rounded p-2 text-xs"><button onclick="UI.handleAddUser()" class="bg-gray-200 px-3 rounded text-xs">Add</button><button onclick="Logic.saveAllConfigs()" class="bg-teal-600 text-white px-4 py-2 rounded text-xs shadow-sm font-bold">Save All</button></div></div><table class="min-w-full divide-y"><thead class="bg-gray-50"><tr><th class="px-4 py-3 text-left text-[10px] font-bold text-gray-400 uppercase">Email</th><th class="px-4 py-3 text-left text-[10px] font-bold text-gray-400 uppercase">Display Name</th><th class="px-4 py-3 text-left text-[10px] font-bold text-gray-400 uppercase">Role</th><th class="px-4 py-3 text-left text-[10px] font-bold text-gray-400 uppercase">Hourly Rate</th><th class="px-4 py-3 text-left text-[10px] font-bold text-gray-400 uppercase">Weekly Hours</th><th class="px-4 py-3 text-left text-[10px] font-bold text-gray-400 uppercase">Monthly Target</th></tr></thead><tbody id="config-table-body" class="divide-y"></tbody></table></div>`;
                     UI.renderConfigTable();
                 }
             },
 
             refreshStats: () => {
                 if (window.currentTab !== 'dashboard') return;
-
-                // CHANGED: Always pass the current user's email to getMetrics
-                // This ensures the dashboard shows INDIVIDUAL stats for everyone, including Admin
-                const metrics = Logic.getMetrics(appState.user.email, appState.currentDate);
-                
-                // Get current month and year string for display
-                const currentMonthYear = appState.currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-
-                // Calculate Bar Heights
-                const maxVal = Math.max(metrics.totalRevenue, metrics.monthlyTarget, 1);
-                const actualHeight = Math.min((metrics.totalRevenue / maxVal) * 100, 100);
-                const targetHeight = Math.min((metrics.monthlyTarget / maxVal) * 100, 100);
-
-                const statsHtml = `
-                    <!-- Bar Graph -->
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8 h-80">
+                const m = Logic.getMetrics(appState.user.email, appState.currentDate);
+                const cm = appState.currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+                const mv = Math.max(m.totalRevenue, m.monthlyTarget, 1);
+                const ah = Math.min((m.totalRevenue / mv) * 100, 100);
+                const th = Math.min((m.monthlyTarget / mv) * 100, 100);
+                document.getElementById('stats-container').innerHTML = `
+                    <div class="bg-white p-4 rounded-xl border mb-4 shadow-sm">
                         <div class="flex justify-between items-center mb-6">
-                             <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide">Performance Overview</h3>
-                             
-                             <!-- Month Navigation -->
-                             <div class="flex items-center space-x-2 bg-gray-50 rounded-lg p-1 border border-gray-100">
-                                <button onclick="Logic.changeMonth(-1)" class="p-1.5 hover:bg-white rounded-md text-gray-500 hover:text-teal-600 transition-all shadow-sm hover:shadow">
-                                    <i class="fas fa-chevron-left text-xs"></i>
-                                </button>
-                                <span class="text-xs font-bold text-gray-700 w-32 text-center select-none uppercase tracking-wide">
-                                    ${currentMonthYear}
-                                </span>
-                                <button onclick="Logic.changeMonth(1)" class="p-1.5 hover:bg-white rounded-md text-gray-500 hover:text-teal-600 transition-all shadow-sm hover:shadow">
-                                    <i class="fas fa-chevron-right text-xs"></i>
-                                </button>
-                             </div>
-                        </div>
-                       
-                        <div class="flex justify-center space-x-12 h-64">
-                            <!-- Actual Column -->
-                            <div class="flex flex-col items-center w-24 h-full">
-                                <div class="text-sm font-bold text-teal-600 mb-2 h-6 flex items-end">$${metrics.totalRevenue.toLocaleString()}</div>
-                                <div class="flex-1 w-full flex items-end bg-gray-50/50 rounded-t-lg relative">
-                                    <div style="height: ${actualHeight}%;" class="w-full bg-teal-500 rounded-t-lg transition-all duration-1000 shadow-sm relative group hover:bg-teal-600"></div>
-                                </div>
-                                <div class="mt-3 text-sm font-bold text-gray-600 h-6">Actual</div>
+                            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">My Progress</h3>
+                            <div class="flex items-center space-x-1 bg-gray-50 rounded p-0.5 border">
+                                <button onclick="Logic.changeMonth(-1)" class="p-1 hover:bg-white rounded"><i class="fas fa-chevron-left text-[10px]"></i></button>
+                                <span class="text-[10px] font-bold w-24 text-center select-none uppercase">${cm}</span>
+                                <button onclick="Logic.changeMonth(1)" class="p-1 hover:bg-white rounded"><i class="fas fa-chevron-right text-[10px]"></i></button>
                             </div>
-                            
-                            <!-- Target Column -->
-                            <div class="flex flex-col items-center w-24 h-full">
-                                <div class="text-sm font-bold text-blue-600 mb-2 h-6 flex items-end">$${metrics.monthlyTarget.toLocaleString()}</div>
-                                <div class="flex-1 w-full flex items-end bg-gray-50/50 rounded-t-lg relative">
-                                    <div style="height: ${targetHeight}%;" class="w-full bg-blue-100 rounded-t-lg transition-all duration-1000 border-t border-l border-r border-blue-200 relative group hover:bg-blue-200"></div>
-                                </div>
-                                <div class="mt-3 text-sm font-bold text-gray-600 h-6">Target</div>
+                        </div>
+                        <div class="flex justify-center items-end space-x-12 h-64 border-b border-gray-100 pb-2 mb-4">
+                            <div class="flex flex-col items-center w-24 h-full justify-end">
+                                <div class="text-[10px] font-bold text-teal-600 mb-2">$${m.totalRevenue.toLocaleString()}</div>
+                                <div style="height: ${ah}%;" class="w-16 md:w-20 bg-teal-500 rounded-t-lg shadow-md transition-all duration-1000"></div>
+                                <div class="mt-3 text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Actual</div>
+                            </div>
+                            <div class="flex flex-col items-center w-24 h-full justify-end">
+                                <div class="text-[10px] font-bold text-blue-600 mb-2">$${m.monthlyTarget.toLocaleString()}</div>
+                                <div style="height: ${th}%;" class="w-16 md:w-20 bg-blue-100 border-t border-x border-blue-200 rounded-t-lg shadow-sm transition-all duration-1000"></div>
+                                <div class="mt-3 text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Target</div>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Number Cards -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
-                        <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-teal-500">
-                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Total Revenue</p>
-                            <p class="mt-2 text-2xl md:text-3xl font-bold text-gray-900">$${metrics.totalRevenue.toLocaleString()}</p>
-                            <p class="mt-1 text-xs text-gray-500">Service: $${metrics.serviceRevenue.toLocaleString()} | Product: $${metrics.productRevenue.toLocaleString()}</p>
-                        </div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500">
-                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Monthly Target</p>
-                            <p class="mt-2 text-2xl md:text-3xl font-bold text-gray-900">$${metrics.monthlyTarget.toLocaleString()}</p>
-                        </div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 ${metrics.percentageToTarget >= 100 ? 'border-green-500' : 'border-yellow-500'}">
-                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Goal Progress</p>
-                            <div class="flex items-baseline">
-                                <p class="mt-2 text-2xl md:text-3xl font-bold text-gray-900">${metrics.percentageToTarget.toFixed(1)}%</p>
-                                ${metrics.percentageToTarget >= 100 ? '<span class="ml-2 text-green-600 text-xs font-bold uppercase tracking-wide bg-green-100 px-2 py-1 rounded-full">Hit!</span>' : ''}
-                            </div>
-                        </div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-purple-500">
-                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Rebooking Rate</p>
-                            <p class="mt-2 text-2xl md:text-3xl font-bold text-gray-900">${metrics.rebookingRate.toFixed(1)}%</p>
-                            <p class="text-xs text-gray-400 mt-1">${metrics.rebookedClients} of ${metrics.totalClients} Total Clients rebooked</p>
-                        </div>
-                    </div>
-                `;
-                
-                const container = document.getElementById('stats-container');
-                if(container) container.innerHTML = statsHtml;
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                        <div class="bg-white p-4 rounded-lg border-l-4 border-teal-500 shadow-sm"><p class="text-[10px] font-bold text-gray-400 uppercase">Revenue</p><p class="text-xl font-bold">$${m.totalRevenue.toLocaleString()}</p><p class="text-[10px] text-gray-500 truncate">Svc: $${m.serviceRevenue} | Prod: $${m.productRevenue}</p></div>
+                        <div class="bg-white p-4 rounded-lg border-l-4 border-blue-500 shadow-sm"><p class="text-[10px] font-bold text-gray-400 uppercase">Goal</p><p class="text-xl font-bold">$${m.monthlyTarget.toLocaleString()}</p></div>
+                        <div class="bg-white p-4 rounded-lg border-l-4 ${m.percentageToTarget >= 100 ? 'border-green-500' : 'border-yellow-500'} shadow-sm"><p class="text-[10px] font-bold text-gray-400 uppercase">Status</p><div class="flex items-baseline"><p class="text-xl font-bold">${m.percentageToTarget.toFixed(1)}%</p>${m.percentageToTarget >= 100 ? '<span class="ml-2 text-green-600 text-[10px] font-bold uppercase">Hit!</span>' : ''}</div></div>
+                        <div class="bg-white p-4 rounded-lg border-l-4 border-purple-500 shadow-sm"><p class="text-[10px] font-bold text-gray-400 uppercase">Rebooking</p><p class="text-xl font-bold">${m.rebookingRate.toFixed(1)}%</p><p class="text-[10px] text-gray-400">${m.rebookedClients}/${m.totalClients} Clients</p></div>
+                    </div>`;
             },
 
-            // New: Render Group Stats
             renderGroupStats: () => {
-                const metrics = Logic.getGroupMetrics(appState.currentDate);
-                const currentMonthYear = appState.currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+                const m = Logic.getGroupMetrics(appState.currentDate);
+                const cm = appState.currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+                const mv = Math.max(m.totalRevenue, m.monthlyTarget, 1);
+                const ah = Math.min((m.totalRevenue / mv) * 100, 100);
+                const th = Math.min((m.monthlyTarget / mv) * 100, 100);
+                const cols = ['bg-teal-400', 'bg-sky-400', 'bg-violet-400', 'bg-rose-400', 'bg-amber-400'];
+                const segs = m.individualStats.map((s, i) => s.revenue <= 0 ? '' : `<div style="height: ${(s.revenue / m.totalRevenue) * 100}%" class="w-full ${cols[i % cols.length]} border-b border-white/20 first:border-b-0" title="${s.name}: $${s.revenue}"></div>`).join('');
+                const legs = m.individualStats.map((s, i) => `<div class="flex items-center text-[10px] text-gray-600"><span class="w-2.5 h-2.5 rounded-full ${cols[i % cols.length]} mr-1.5 shadow-sm"></span><span>${s.name}</span></div>`).join('');
 
-                const maxVal = Math.max(metrics.totalRevenue, metrics.monthlyTarget, 1);
-                const actualHeight = Math.min((metrics.totalRevenue / maxVal) * 100, 100);
-                const targetHeight = Math.min((metrics.monthlyTarget / maxVal) * 100, 100);
-
-                // Colors for the stacked bar
-                const colors = ['bg-teal-400', 'bg-sky-400', 'bg-violet-400', 'bg-rose-400', 'bg-amber-400'];
-
-                // Generate Stacked Segments
-                const stackedSegments = metrics.individualStats.map((stat, index) => {
-                    if (stat.revenue <= 0) return '';
-                    const segmentHeight = metrics.totalRevenue > 0 ? (stat.revenue / metrics.totalRevenue) * 100 : 0;
-                    const color = colors[index % colors.length];
-                    return `<div style="height: ${segmentHeight}%" class="w-full ${color} relative group/segment border-b border-white/20 first:border-b-0" title="${stat.name}: $${stat.revenue.toLocaleString()}"></div>`;
-                }).join('');
-
-                // Generate Legend
-                const legendHtml = metrics.individualStats.map((stat, index) => {
-                    const color = colors[index % colors.length];
-                    return `
-                        <div class="flex items-center text-xs text-gray-600">
-                            <span class="w-3 h-3 rounded-full ${color} mr-2 shadow-sm"></span>
-                            <span class="font-medium">${stat.name}</span>
-                        </div>
-                    `;
-                }).join('');
-
-                const html = `
-                    <!-- Bar Graph -->
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8 h-96">
+                document.getElementById('group-stats-container').innerHTML = `
+                    <div class="bg-white p-4 rounded-xl border mb-4 shadow-sm">
                         <div class="flex justify-between items-center mb-6">
-                             <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide">Combined Group Performance</h3>
-                             
-                             <!-- Month Navigation -->
-                             <div class="flex items-center space-x-2 bg-gray-50 rounded-lg p-1 border border-gray-100">
-                                <button onclick="Logic.changeMonth(-1)" class="p-1.5 hover:bg-white rounded-md text-gray-500 hover:text-teal-600 transition-all shadow-sm hover:shadow">
-                                    <i class="fas fa-chevron-left text-xs"></i>
-                                </button>
-                                <span class="text-xs font-bold text-gray-700 w-32 text-center select-none uppercase tracking-wide">
-                                    ${currentMonthYear}
-                                </span>
-                                <button onclick="Logic.changeMonth(1)" class="p-1.5 hover:bg-white rounded-md text-gray-500 hover:text-teal-600 transition-all shadow-sm hover:shadow">
-                                    <i class="fas fa-chevron-right text-xs"></i>
-                                </button>
-                             </div>
-                        </div>
-                       
-                        <div class="flex justify-center space-x-16 h-64">
-                            <!-- Actual Bar (Stacked) -->
-                            <div class="flex flex-col items-center w-24 h-full">
-                                <div class="text-sm font-bold text-teal-600 mb-2 h-6 flex items-end">$${metrics.totalRevenue.toLocaleString()}</div>
-                                <div class="flex-1 w-full flex items-end bg-gray-50/50 rounded-t-lg relative">
-                                    <div style="height: ${actualHeight}%;" class="w-20 md:w-24 bg-gray-50 rounded-t-lg flex flex-col-reverse overflow-hidden shadow-sm relative">
-                                        ${stackedSegments}
-                                    </div>
-                                </div>
-                                <div class="mt-3 text-sm font-bold text-gray-600 h-6">Actual</div>
-                            </div>
-                            
-                            <!-- Target Bar -->
-                            <div class="flex flex-col items-center w-24 h-full">
-                                <div class="text-sm font-bold text-blue-600 mb-2 h-6 flex items-end">$${metrics.monthlyTarget.toLocaleString()}</div>
-                                <div class="flex-1 w-full flex items-end bg-gray-50/50 rounded-t-lg relative">
-                                    <div style="height: ${targetHeight}%;" class="w-20 md:w-24 bg-blue-100 rounded-t-lg transition-all duration-1000 relative hover:bg-blue-200 border-t border-l border-r border-blue-200"></div>
-                                </div>
-                                <div class="mt-3 text-sm font-bold text-gray-600 h-6">Team Target</div>
+                            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Team Progress</h3>
+                            <div class="flex items-center space-x-1 bg-gray-50 rounded p-0.5 border">
+                                <button onclick="Logic.changeMonth(-1)" class="p-1 hover:bg-white rounded"><i class="fas fa-chevron-left text-[10px]"></i></button>
+                                <span class="text-[10px] font-bold w-24 text-center select-none uppercase">${cm}</span>
+                                <button onclick="Logic.changeMonth(1)" class="p-1 hover:bg-white rounded"><i class="fas fa-chevron-right text-[10px]"></i></button>
                             </div>
                         </div>
-
-                        <!-- Legend -->
-                        <div class="flex flex-wrap justify-center gap-6 mt-6 pt-4 border-t border-gray-50">
-                            ${legendHtml}
+                        <div class="flex justify-center items-end space-x-16 h-64 border-b border-gray-100 pb-2 mb-4">
+                            <div class="flex flex-col items-center w-24 h-full justify-end">
+                                <div class="text-[10px] font-bold text-teal-600 mb-2">$${m.totalRevenue.toLocaleString()}</div>
+                                <div style="height: ${ah}%;" class="w-16 md:w-20 rounded-t-lg overflow-hidden flex flex-col-reverse shadow-md transition-all duration-1000">${segs}</div>
+                                <div class="mt-3 text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Actual</div>
+                            </div>
+                            <div class="flex flex-col items-center w-24 h-full justify-end">
+                                <div class="text-[10px] font-bold text-blue-600 mb-2">$${m.monthlyTarget.toLocaleString()}</div>
+                                <div style="height: ${th}%;" class="w-16 md:w-20 bg-blue-100 border-t border-x border-blue-200 rounded-t-lg shadow-sm transition-all duration-1000"></div>
+                                <div class="mt-3 text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Target</div>
+                            </div>
                         </div>
+                        <div class="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-4 pt-4 border-t border-gray-50">${legs}</div>
                     </div>
-
-                    <!-- Number Cards -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
-                        <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-teal-500">
-                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Team Revenue</p>
-                            <p class="mt-2 text-2xl md:text-3xl font-bold text-gray-900">$${metrics.totalRevenue.toLocaleString()}</p>
-                            <p class="mt-1 text-xs text-gray-500">Service: $${metrics.serviceRevenue.toLocaleString()} | Product: $${metrics.productRevenue.toLocaleString()}</p>
-                        </div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500">
-                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Team Target</p>
-                            <p class="mt-2 text-2xl md:text-3xl font-bold text-gray-900">$${metrics.monthlyTarget.toLocaleString()}</p>
-                        </div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 ${metrics.percentageToTarget >= 100 ? 'border-green-500' : 'border-yellow-500'}">
-                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Team Progress</p>
-                            <div class="flex items-baseline">
-                                <p class="mt-2 text-2xl md:text-3xl font-bold text-gray-900">${metrics.percentageToTarget.toFixed(1)}%</p>
-                                ${metrics.percentageToTarget >= 100 ? '<span class="ml-2 text-green-600 text-xs font-bold uppercase tracking-wide bg-green-100 px-2 py-1 rounded-full">Hit!</span>' : ''}
-                            </div>
-                        </div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-purple-500">
-                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Team Rebooking Rate</p>
-                            <p class="mt-2 text-2xl md:text-3xl font-bold text-gray-900">${metrics.rebookingRate.toFixed(1)}%</p>
-                            <p class="text-xs text-gray-400 mt-1">${metrics.rebookedClients} of ${metrics.totalClients} Total Clients rebooked</p>
-                        </div>
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                        <div class="bg-white p-4 rounded-lg border-l-4 border-teal-500 shadow-sm"><p class="text-[10px] font-bold text-gray-400 uppercase">Team Rev</p><p class="text-xl font-bold">$${m.totalRevenue.toLocaleString()}</p><p class="text-[10px] text-gray-500 truncate">Svc: $${m.serviceRevenue} | Prod: $${m.productRevenue}</p></div>
+                        <div class="bg-white p-4 rounded-lg border-l-4 border-blue-500 shadow-sm"><p class="text-[10px] font-bold text-gray-400 uppercase">Team Target</p><p class="text-xl font-bold">$${m.monthlyTarget.toLocaleString()}</p></div>
+                        <div class="bg-white p-4 rounded-lg border-l-4 ${m.percentageToTarget >= 100 ? 'border-green-500' : 'border-yellow-500'} shadow-sm"><p class="text-[10px] font-bold text-gray-400 uppercase">Status</p><p class="text-xl font-bold">${m.percentageToTarget.toFixed(1)}%</p></div>
+                        <div class="bg-white p-4 rounded-lg border-l-4 border-purple-500 shadow-sm"><p class="text-[10px] font-bold text-gray-400 uppercase">Rebooking</p><p class="text-xl font-bold">${m.rebookingRate.toFixed(1)}%</p><p class="text-[10px] text-gray-400">${m.rebookedClients}/${m.totalClients} Clients</p></div>
                     </div>
-
-                    <!-- Therapist Breakdown Table -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Therapist Breakdown</h3>
+                    <div class="bg-white rounded-xl border p-6 shadow-sm">
+                        <h3 class="text-sm font-bold mb-4">Therapist Breakdown</h3>
                         <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
+                            <table class="min-w-full divide-y">
                                 <thead class="bg-gray-50">
                                     <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Therapist</th>
-                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Rev</th>
-                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Service ($)</th>
-                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Product ($)</th>
-                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Target %</th>
-                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Rebook Rate</th>
-                                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Clients</th>
-                                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Rebooked</th>
+                                        <th class="px-2 py-2 text-left text-[10px] font-bold text-gray-400 uppercase">Therapist</th>
+                                        <th class="px-2 py-2 text-right text-[10px] font-bold text-gray-400 uppercase">Total Rev</th>
+                                        <th class="px-2 py-2 text-right text-[10px] font-bold text-gray-400 uppercase">Svc ($)</th>
+                                        <th class="px-2 py-2 text-right text-[10px] font-bold text-gray-400 uppercase">Prod ($)</th>
+                                        <th class="px-2 py-2 text-right text-[10px] font-bold text-gray-400 uppercase">Target %</th>
+                                        <th class="px-2 py-2 text-right text-[10px] font-bold text-gray-400 uppercase">Rebook %</th>
+                                        <th class="px-2 py-2 text-center text-[10px] font-bold text-gray-400 uppercase">Clients</th>
+                                        <th class="px-2 py-2 text-center text-[10px] font-bold text-gray-400 uppercase">Rebooked</th>
                                     </tr>
                                 </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    ${metrics.individualStats.map(stat => `
-                                        <tr class="hover:bg-gray-50">
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${stat.name}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 font-bold">$${stat.revenue.toLocaleString()}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">$${stat.serviceRevenue.toLocaleString()}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600 font-medium">$${stat.productRevenue.toLocaleString()}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                                                <span class="${stat.targetPct >= 100 ? 'text-green-600 font-bold' : ''}">${stat.targetPct.toFixed(1)}%</span>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500 font-bold">${stat.rebookRate.toFixed(1)}%</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500">${stat.clients}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500">${stat.rebooked}</td>
-                                        </tr>
-                                    `).join('')}
+                                <tbody class="divide-y">${m.individualStats.map(s => `
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-2 py-2 text-xs font-bold text-gray-900">${s.name}</td>
+                                        <td class="px-2 py-2 text-xs text-right font-bold text-gray-900">$${s.revenue.toLocaleString()}</td>
+                                        <td class="px-2 py-2 text-xs text-right text-gray-500">$${s.serviceRevenue}</td>
+                                        <td class="px-2 py-2 text-xs text-right text-blue-600 font-medium">$${s.productRevenue}</td>
+                                        <td class="px-2 py-2 text-xs text-right ${s.targetPct >= 100 ? 'text-green-600 font-bold' : 'text-gray-500'}">${s.targetPct.toFixed(1)}%</td>
+                                        <td class="px-2 py-2 text-xs text-right font-bold text-gray-900">${s.rebookRate.toFixed(1)}%</td>
+                                        <td class="px-2 py-2 text-xs text-center text-gray-500">${s.clients}</td>
+                                        <td class="px-2 py-2 text-xs text-center text-gray-500">${s.rebooked}</td>
+                                    </tr>`).join('')}
                                 </tbody>
                             </table>
                         </div>
-                    </div>
-                `;
-                document.getElementById('group-stats-container').innerHTML = html;
+                    </div>`;
             },
 
             renderTodayTable: () => {
-                const tbody = document.getElementById('recent-table-body');
-                if (!tbody) return;
-
-                let filteredRecords = appState.records;
-                
-                // CHANGED: Always filter by the current logged-in user, even if Admin
-                // This aligns the table with the "My Performance" metrics
-                filteredRecords = appState.records.filter(r => r.therapistEmail === appState.user.email);
-
-                // Filter by TODAY
-                const today = new Date();
-                today.setHours(0,0,0,0);
-                
-                const todaysRecords = filteredRecords.filter(r => {
-                    const rDate = new Date(r.date);
-                    rDate.setHours(0,0,0,0);
-                    return rDate.getTime() === today.getTime();
-                }).sort((a, b) => new Date(b.date) - new Date(a.date));
-
-                if (todaysRecords.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-400 italic">No activity for today.</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = todaysRecords.map(r => `
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${r.clientName || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                            ${r.service}
-                            ${r.duration ? `<span class="block text-xs text-gray-400 font-normal mt-0.5"><i class="far fa-clock mr-1"></i>${r.duration}</span>` : ''}
-                            ${r.productAmount > 0 && r.entryType === 'service_product' ? `<span class="block text-xs text-blue-500 font-normal mt-0.5">+ Product: $${r.productAmount}</span>` : ''}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(r.date).toLocaleDateString()}</td>
-                        ${appState.user.role === 'admin' ? `<td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500">${r.therapistEmail.split('@')[0]}</td>` : ''}
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 font-medium">$${r.totalAmount.toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500 flex items-center justify-center space-x-2">
-                            <div class="flex flex-col items-center">
-                                ${r.isNew ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 mb-1">New</span>' : ''}
-                                ${r.isRebook ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">Rebooked</span>' : ''}
-                                ${r.entryType === 'product' ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Product</span>' : ''}
-                            </div>
-                            <button onclick="UI.openEditModal(${r.id})" class="text-gray-400 hover:text-teal-600 transition-colors ml-2" title="Edit Entry">
-                                <i class="fas fa-pencil-alt"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `).join('');
+                const tbody = document.getElementById('recent-table-body'); if (!tbody) return;
+                const today = new Date(); today.setHours(0,0,0,0);
+                const records = appState.records.filter(r => {
+                    const rDate = new Date(r.date); rDate.setHours(0,0,0,0);
+                    return rDate.getTime() === today.getTime() && r.therapistEmail === appState.user.email;
+                }).sort((a, b) => new Date(a.date) - new Date(b.date));
+                if (records.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400 italic text-xs">No activity found for your profile today.</td></tr>'; return; }
+                tbody.innerHTML = records.map(r => {
+                    const ds = new Date(r.date).toLocaleDateString([], { month: 'numeric', day: 'numeric' });
+                    return `
+                        <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0">
+                            <td class="px-2 py-2 text-xs text-gray-500">${ds}</td>
+                            <td class="px-2 py-2 text-xs font-bold truncate max-w-[100px] text-gray-900">${r.clientName || 'N/A'}</td>
+                            <td class="px-2 py-2 text-xs text-gray-600 truncate max-w-[120px]">
+                                <div class="font-medium">${r.service}</div>
+                                ${r.duration ? `<span class="text-[10px] text-gray-400"><i class="far fa-clock mr-1"></i>${r.duration}</span>` : ''}
+                                ${r.productAmount > 0 ? `<span class="text-[10px] text-blue-500 font-bold ml-1">+$${r.productAmount}P</span>` : ''}
+                            </td>
+                            <td class="px-2 py-2 text-xs text-right font-bold text-gray-900">$${r.totalAmount.toFixed(2)}</td>
+                            <td class="px-2 py-2 text-center text-xs">
+                                <div class="flex items-center justify-center space-x-1">
+                                    ${r.isNew ? '<span class="px-1.5 py-0.5 bg-green-100 text-green-800 text-[10px] rounded leading-none">New</span>' : ''}
+                                    ${r.isRebook ? '<span class="px-1.5 py-0.5 bg-purple-100 text-purple-800 text-[10px] rounded leading-none">Rebook</span>' : ''}
+                                    <button onclick="UI.openEditModal(${r.id})" class="text-gray-400 hover:text-teal-600 p-1 transition-colors"><i class="fas fa-pencil-alt text-xs"></i></button>
+                                </div>
+                            </td>
+                        </tr>`;
+                }).join('');
             },
 
-            // New: History Table Renderer
             renderHistoryTable: () => {
-                const tbody = document.getElementById('history-table-body');
-                if (!tbody) return;
-
-                let filteredRecords = appState.records;
-                
-                // CHANGED: Always filter by the current logged-in user, even if Admin
-                filteredRecords = appState.records.filter(r => r.therapistEmail === appState.user.email);
-
-                // Filter by MONTH
-                const targetMonth = appState.currentDate.getMonth();
-                const targetYear = appState.currentDate.getFullYear();
-
-                const monthlyRecords = filteredRecords.filter(r => {
+                const tbody = document.getElementById('history-table-body'); if (!tbody) return;
+                const tm = appState.currentDate.getMonth(); const ty = appState.currentDate.getFullYear();
+                document.getElementById('history-month-display').textContent = appState.currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+                const records = appState.records.filter(r => {
                     const rDate = new Date(r.date);
-                    return rDate.getMonth() === targetMonth && rDate.getFullYear() === targetYear;
-                }).sort((a, b) => new Date(b.date) - new Date(a.date));
-
-                if (monthlyRecords.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-400 italic">No records found for this month.</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = monthlyRecords.map(r => `
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${r.clientName || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                            ${r.service}
-                            ${r.duration ? `<span class="block text-xs text-gray-400 font-normal mt-0.5"><i class="far fa-clock mr-1"></i>${r.duration}</span>` : ''}
-                            ${r.productAmount > 0 && r.entryType === 'service_product' ? `<span class="block text-xs text-blue-500 font-normal mt-0.5">+ Product: $${r.productAmount}</span>` : ''}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(r.date).toLocaleDateString()}</td>
-                        ${appState.user.role === 'admin' ? `<td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500">${r.therapistEmail.split('@')[0]}</td>` : ''}
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 font-medium">$${r.totalAmount.toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500 flex items-center justify-center space-x-2">
-                            <div class="flex flex-col items-center">
-                                ${r.isNew ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 mb-1">New</span>' : ''}
-                                ${r.isRebook ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">Rebooked</span>' : ''}
-                                ${r.entryType === 'product' ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Product</span>' : ''}
-                            </div>
-                            <button onclick="UI.openEditModal(${r.id})" class="text-gray-400 hover:text-teal-600 transition-colors ml-2" title="Edit Entry">
-                                <i class="fas fa-pencil-alt"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `).join('');
+                    return rDate.getMonth() === tm && rDate.getFullYear() === ty && r.therapistEmail === appState.user.email;
+                }).sort((a, b) => new Date(a.date) - new Date(b.date));
+                if (records.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400 italic text-xs">No records found for your profile this month.</td></tr>'; return; }
+                tbody.innerHTML = records.map(r => {
+                    const ds = new Date(r.date).toLocaleDateString([], { month: 'numeric', day: 'numeric' });
+                    return `
+                        <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0">
+                            <td class="px-2 py-2 text-xs text-gray-500">${ds}</td>
+                            <td class="px-2 py-2 text-xs font-bold truncate max-w-[100px] text-gray-900">${r.clientName || 'N/A'}</td>
+                            <td class="px-2 py-2 text-xs text-gray-600 truncate max-w-[120px]">
+                                <div class="font-medium">${r.service}</div>
+                                ${r.duration ? `<span class="text-[10px] text-gray-400"><i class="far fa-clock mr-1"></i>${r.duration}</span>` : ''}
+                            </td>
+                            <td class="px-2 py-2 text-xs text-right font-bold text-gray-900">$${r.totalAmount.toFixed(2)}</td>
+                            <td class="px-2 py-2 text-center text-xs">
+                                <div class="flex items-center justify-center space-x-1">
+                                    ${r.isNew ? '<span class="px-1.5 py-0.5 bg-green-100 text-green-800 text-[10px] rounded leading-none">New</span>' : ''}
+                                    ${r.isRebook ? '<span class="px-1.5 py-0.5 bg-purple-100 text-purple-800 text-[10px] rounded leading-none">Rebook</span>' : ''}
+                                    <button onclick="UI.openEditModal(${r.id})" class="text-gray-400 hover:text-teal-600 p-1 transition-colors"><i class="fas fa-pencil-alt text-xs"></i></button>
+                                </div>
+                            </td>
+                        </tr>`;
+                }).join('');
             },
 
             renderConfigTable: () => {
-                const tbody = document.getElementById('config-table-body');
-                if (!tbody) return;
-
+                const tbody = document.getElementById('config-table-body'); if (!tbody) return;
                 tbody.innerHTML = appState.users.map(u => `
                     <tr class="hover:bg-gray-50 config-row" data-email="${u.email}">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${u.email}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <input type="text" value="${u.name}" class="input-name w-32 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition-shadow">
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${u.role === 'admin' ? 'bg-black text-white' : 'bg-gray-100 text-gray-800'}">
-                                ${u.role}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <input type="number" value="${u.hourlyRate}" oninput="UI.calculateRowTarget(this)" class="input-rate w-24 border border-gray-300 rounded px-2 py-1 text-right focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition-shadow">
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <input type="number" value="${u.agreedHours}" oninput="UI.calculateRowTarget(this)" class="input-hours w-24 border border-gray-300 rounded px-2 py-1 text-right focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition-shadow">
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold target-cell">
-                            $${((u.hourlyRate * u.agreedHours) * 4).toLocaleString()}
-                        </td>
+                        <td class="px-4 py-3 text-xs font-bold text-gray-600">${u.email}</td>
+                        <td class="px-4 py-3"><input type="text" value="${u.name}" class="input-name w-32 border rounded p-1 text-xs focus:ring-1 focus:ring-teal-500 outline-none shadow-sm"></td>
+                        <td class="px-4 py-3"><span class="px-2 py-0.5 text-[10px] font-bold rounded-full ${u.role === 'admin' ? 'bg-black text-white' : 'bg-gray-100 text-gray-600'} uppercase">${u.role}</span></td>
+                        <td class="px-4 py-3"><input type="number" value="${u.hourlyRate}" oninput="UI.calculateRowTarget(this)" class="input-rate w-20 border rounded p-1 text-xs text-right focus:ring-1 focus:ring-teal-500 outline-none shadow-sm"></td>
+                        <td class="px-4 py-3"><input type="number" value="${u.agreedHours}" oninput="UI.calculateRowTarget(this)" class="input-hours w-20 border rounded p-1 text-xs text-right focus:ring-1 focus:ring-teal-500 outline-none shadow-sm"></td>
+                        <td class="px-4 py-3 text-xs font-bold text-gray-900 target-cell">$${((u.hourlyRate * u.agreedHours) * 4).toLocaleString()}</td>
                     </tr>
                 `).join('');
             },
 
             handleAddUser: () => {
-                const emailInput = document.getElementById('newUserEmail');
-                if (emailInput.value && emailInput.value.includes('@')) {
-                    Logic.addUser(emailInput.value);
-                    emailInput.value = '';
-                } else {
-                    UI.showToast("Please enter a valid email", "error");
-                }
+                const email = document.getElementById('newUserEmail').value;
+                if (email && email.includes('@')) { Logic.addUser(email); document.getElementById('newUserEmail').value = ''; } else { UI.showToast("Invalid email", "error"); }
             }
         };
 
-        // Expose UI helpers to global scope for onclick events in HTML strings
-        window.UI = UI;
-        window.Logic = Logic;
-
-        // Start App
+        window.UI = UI; window.Logic = Logic;
         window.addEventListener('DOMContentLoaded', UI.init);
-
     </script>
     <style>
         body { font-family: 'Inter', sans-serif; }
-        /* Custom scrollbar for tables */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
     </style>
 </head>
-<body>
-    <!-- App Container - Content controlled by JS -->
-    <div id="app"></div>
-</body>
+<body><div id="app"></div></body>
 </html>
