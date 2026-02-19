@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Totally RAD Beauty | Clinic Dashboard v7.5.4</title>
+    <title>Totally RAD Beauty | Clinic Dashboard v7.6.4</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -35,7 +35,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, where, getDocs, doc, setDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
         // =========================================================================
@@ -61,7 +61,7 @@
         // =========================================================================
         // APP CONSTANTS & DEFAULTS
         // =========================================================================
-        const APP_VERSION = "7.5.4";
+        const APP_VERSION = "7.6.4";
         
         const DEFAULT_SERVICES = [
             "3D Skin Analysis + Custom Facial", "Bacial", "Calming (High Frequency) Facial", "Consultation",
@@ -105,6 +105,7 @@
         const getColl = (name) => collection(db, 'artifacts', appIdToUse, 'public', 'data', name);
         const formatClientLabel = (client) => client.email ? `${client.name} (${client.email})` : client.name;
         const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
+        const getDocRef = (colName, docId) => doc(db, 'artifacts', appIdToUse, 'public', 'data', colName, docId);
 
         // =========================================================================
         // CORE LOGIC
@@ -112,31 +113,80 @@
 
         const Logic = {
             init: async () => {
+                // Listen for real Firebase Auth state changes
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
-                        console.log("Authenticated as:", user.uid);
+                        console.log("Logged in as:", user.email);
+                        appState.currentUserEmail = user.email;
                         Logic.setupListeners();
                     } else {
-                        signInAnonymously(auth).catch((error) => console.error("Auth failed:", error));
+                        console.log("No user logged in.");
+                        appState.user = null;
+                        appState.currentUserEmail = null;
+                        UI.renderLogin();
                     }
                 });
             },
 
             setupListeners: () => {
-                const handleError = (err) => console.error("DB Error:", err); 
+                const handleError = (err) => {
+                    console.error("DB Error:", err);
+                    if (err.code === 'permission-denied') {
+                        UI.showErrorModal("Access Denied", "Firebase Security Rules are blocking access. Please update rules to: 'allow read, write: if true;' in the Firebase Console.");
+                    }
+                };
 
+                // 1. Users (Config) Listener
                 onSnapshot(getColl('users'), (snapshot) => {
                     const dbUsers = snapshot.docs.map(d => ({...d.data(), id: d.id}));
-                    if (dbUsers.length > 0) appState.users = dbUsers;
-                    else DEFAULT_USERS.forEach(u => addDoc(getColl('users'), u));
-                    if(appState.user) UI.refreshCurrentView();
+                    
+                    if (dbUsers.length > 0) {
+                        appState.users = dbUsers;
+                    } else {
+                        // If DB is empty, seed defaults
+                        DEFAULT_USERS.forEach(u => addDoc(getColl('users'), u));
+                        appState.users = DEFAULT_USERS;
+                    }
+
+                    // Match Auth Email to Config User
+                    if (appState.currentUserEmail) {
+                        const matchedUser = appState.users.find(u => u.email.toLowerCase() === appState.currentUserEmail.toLowerCase());
+                        if (matchedUser) {
+                            appState.user = matchedUser;
+                            // Ensure dashboard is rendered if coming from login
+                            if (!document.getElementById('main-content')) {
+                                UI.renderDashboard();
+                                UI.switchTab('dashboard');
+                            } else {
+                                UI.refreshCurrentView();
+                            }
+                        } else {
+                            // Auth successful, but user not in config
+                            appState.user = { 
+                                email: appState.currentUserEmail, 
+                                name: appState.currentUserEmail.split('@')[0], 
+                                role: 'therapist', 
+                                hourlyRate: 0, 
+                                agreedHours: 0,
+                                targetHistory: {}
+                            };
+                            if (!document.getElementById('main-content')) {
+                                UI.renderDashboard();
+                                UI.switchTab('dashboard');
+                            }
+                            UI.showToast("User config not found. Using default settings.", "warning");
+                        }
+                    }
                 }, handleError);
 
+                // 2. Services Listener
                 onSnapshot(getColl('services'), (snapshot) => {
                     const data = snapshot.docs.map(d => ({...d.data(), id: d.id}));
                     if (data.length > 0) appState.services = data.map(s => s.name).sort();
+                    else DEFAULT_SERVICES.forEach(s => addDoc(getColl('services'), {name: s}));
                 }, handleError);
 
+                // 3. Clients Listener
                 onSnapshot(getColl('clients'), (snapshot) => {
                     appState.clients = snapshot.docs.map(d => ({...d.data(), id: d.id}));
                     appState.clients.sort((a,b) => a.name.localeCompare(b.name));
@@ -144,6 +194,7 @@
                     if(window.currentTab === 'clients') UI.renderClientsList();
                 }, handleError);
 
+                // 4. Records Listener
                 onSnapshot(getColl('records'), (snapshot) => {
                     appState.records = snapshot.docs.map(d => ({...d.data(), id: d.id}));
                     if(appState.user) UI.refreshCurrentView();
@@ -151,20 +202,30 @@
             },
 
             login: async (email, password) => {
-                const user = appState.users.find(u => u.email.toLowerCase() === email.toLowerCase().trim());
-                if (user) {
-                    appState.user = user;
-                    UI.renderDashboard();
-                    UI.switchTab('dashboard');
+                try {
+                    await signInWithEmailAndPassword(auth, email, password);
                     return { success: true };
+                } catch (error) {
+                    console.error("Login Error", error);
+                    
+                    let msg = error.message;
+                    // Provide specific guidance for the "operation-not-allowed" error
+                    if (error.code === 'auth/operation-not-allowed') {
+                        msg = "Email/Password sign-in is disabled. Go to Firebase Console > Authentication > Sign-in method and enable 'Email/Password'.";
+                    } else if (error.code === 'auth/user-not-found') {
+                        msg = "No user found with this email.";
+                    } else if (error.code === 'auth/wrong-password') {
+                        msg = "Incorrect password.";
+                    }
+                    
+                    return { success: false, message: msg };
                 }
-                return { success: false, message: "Email not found in authorized staff list." };
             },
 
             logout: () => {
-                appState.user = null;
-                UI.renderLogin();
-                UI.showToast("Logged out.");
+                signOut(auth).then(() => {
+                    UI.showToast("Logged out successfully.");
+                });
             },
             
             switchUser: (email) => {
@@ -191,6 +252,7 @@
                     const match = clientInput.match(/^(.*) \((.*)\)$/);
                     if (match) { clientName = match[1]; clientEmail = match[2]; }
 
+                    // Sync Client First (Wait for it)
                     if (!appState.clients.some(c => c.name === clientName)) {
                         await addDoc(getColl('clients'), { name: clientName, email: clientEmail, notes: [] });
                     }
@@ -215,47 +277,52 @@
                     };
                     
                     await addDoc(getColl('records'), record);
-                    UI.showToast("Record saved.");
+                    
+                    UI.showToast("Record saved successfully.");
                     UI.closeEntryModal();
                 } catch (e) {
                     console.error(e);
-                    UI.showToast("Save failed. Check permissions.", "error");
+                    UI.showToast("Failed to save: " + e.message, "error");
                 }
             },
 
             updateRecord: async (id, updatedData) => {
                 try {
-                    if (typeof id === 'string') {
-                        await updateDoc(doc(db, 'artifacts', appIdToUse, 'public', 'data', 'records', id), updatedData);
-                        UI.showToast("Record updated.");
-                        UI.closeEditModal();
+                    if (typeof id === 'string' && id.length > 5) {
+                        await updateDoc(getDocRef('records', id), updatedData);
                         
+                        // Check client
                         if (updatedData.clientName && !appState.clients.some(c => c.name === updatedData.clientName)) {
                             await addDoc(getColl('clients'), { name: updatedData.clientName, email: "", notes: [] });
                         }
+                        
+                        UI.showToast("Record updated.");
+                        UI.closeEditModal();
                     } else {
-                        UI.showToast("Cannot edit seeded demo data.", "error");
+                        UI.showToast("Cannot edit demo data.", "error");
                     }
                 } catch (e) {
                      console.error(e);
-                     UI.showToast("Update failed.", "error");
+                     UI.showToast("Update failed: " + e.message, "error");
                 }
             },
 
             deleteRecord: async (id) => {
                 try {
-                    if (typeof id === 'string') {
-                        await deleteDoc(doc(db, 'artifacts', appIdToUse, 'public', 'data', 'records', id));
+                    if (typeof id === 'string' && id.length > 5) {
+                        await deleteDoc(getDocRef('records', id));
                         UI.showToast("Record deleted.");
                         UI.closeDeleteModal();
                     } else {
+                        // Demo data
                         appState.records = appState.records.filter(r => r.id !== id);
                         UI.refreshCurrentView();
                         UI.closeDeleteModal();
+                        UI.showToast("Demo record removed.");
                     }
                 } catch (e) {
                     console.error(e);
-                    UI.showToast("Delete failed.", "error");
+                    UI.showToast("Delete failed: " + e.message, "error");
                 }
             },
 
@@ -265,11 +332,15 @@
                     if (client && text.trim()) {
                         const newNote = { id: generateId(), text: text.trim(), date: new Date().toISOString() };
                         const updatedNotes = [...(client.notes || []), newNote];
+                        
                         if (client.id && client.id.length > 10) { 
-                            await updateDoc(doc(db, 'artifacts', appIdToUse, 'public', 'data', 'clients', clientId), { notes: updatedNotes });
+                            await updateDoc(getDocRef('clients', clientId), { notes: updatedNotes });
+                             UI.showToast("Note added.");
+                        } else {
+                            client.notes = updatedNotes;
+                            UI.showToast("Note added (Demo).");
                         }
                         UI.openClientDetailsModal(clientId); 
-                        UI.showToast("Note added");
                     }
                 } catch (e) {
                      console.error(e);
@@ -280,13 +351,15 @@
             updateClient: async (id, name, email) => {
                 try {
                     if (id && id.length > 10) {
-                         await updateDoc(doc(db, 'artifacts', appIdToUse, 'public', 'data', 'clients', id), { name, email });
-                    }
-                    UI.showToast("Client updated");
-                    UI.closeClientModal();
-                    if(window.currentTab === 'clients') UI.renderClientsList();
-                    if(document.getElementById('clientDetailsModal').classList.contains('hidden') === false) {
-                         UI.openClientDetailsModal(id);
+                         await updateDoc(getDocRef('clients', id), { name, email });
+                         UI.showToast("Client updated");
+                         UI.closeClientModal();
+                    } else {
+                         const c = appState.clients.find(x => x.id === id);
+                         if(c) { c.name = name; c.email = email; }
+                         UI.showToast("Client updated (Demo)");
+                         UI.closeClientModal();
+                         UI.renderClientsList();
                     }
                 } catch (e) {
                     console.error(e);
@@ -300,7 +373,7 @@
                     if(client) {
                         const updatedNotes = client.notes.map(n => n.id === noteId ? {...n, text} : n);
                         if(client.id && client.id.length > 10) {
-                            await updateDoc(doc(db, 'artifacts', appIdToUse, 'public', 'data', 'clients', clientId), { notes: updatedNotes });
+                            await updateDoc(getDocRef('clients', clientId), { notes: updatedNotes });
                         } else {
                              client.notes = updatedNotes;
                         }
@@ -308,7 +381,7 @@
                         UI.closeNoteModal();
                         UI.openClientDetailsModal(clientId);
                     }
-                } catch (e) { console.error(e); }
+                } catch (e) { console.error(e); UI.showToast("Failed to update note.", "error"); }
             },
 
             deleteClientNote: async (clientId, noteId) => {
@@ -317,14 +390,14 @@
                     if(client && confirm("Delete note?")) {
                         const updatedNotes = client.notes.filter(n => n.id !== noteId);
                         if(client.id && client.id.length > 10) {
-                            await updateDoc(doc(db, 'artifacts', appIdToUse, 'public', 'data', 'clients', clientId), { notes: updatedNotes });
+                            await updateDoc(getDocRef('clients', clientId), { notes: updatedNotes });
                         } else {
                             client.notes = updatedNotes;
                         }
                         UI.openClientDetailsModal(clientId);
                         UI.showToast("Note deleted");
                     }
-                } catch (e) { console.error(e); }
+                } catch (e) { console.error(e); UI.showToast("Failed to delete note.", "error"); }
             },
 
             // Configuration
@@ -379,20 +452,22 @@
                     for (const row of rows) {
                         const email = row.dataset.email;
                         const user = appState.users.find(u => u.email === email);
-                        if (user && user.id) {
+                        if (user) {
                             const name = row.querySelector('.input-name').value;
                             const hourlyRate = parseFloat(row.querySelector('.input-rate').value);
                             const agreedHours = parseFloat(row.querySelector('.input-hours').value);
                             const targetHistory = user.targetHistory || {};
                             targetHistory[currentMonthKey] = (hourlyRate * agreedHours) * 4;
                             
-                            await updateDoc(doc(db, 'artifacts', appIdToUse, 'public', 'data', 'users', user.id), {
-                                name, hourlyRate, agreedHours, targetHistory
-                            });
+                            if(user.id && user.id.length > 10) {
+                                await updateDoc(getDocRef('users', user.id), {
+                                    name, hourlyRate, agreedHours, targetHistory
+                                });
+                            }
                         }
                     }
                     UI.showToast("Configuration saved.");
-                } catch (e) { UI.showToast("Save failed.", "error"); }
+                } catch (e) { UI.showToast("Save failed. Check permissions.", "error"); }
             },
             
             generateFakeData: () => {
@@ -420,8 +495,11 @@
                 
                 if (appState.user) {
                     try {
-                        for(let i=0; i<5; i++) addDoc(getColl('records'), createRandomRecord(appState.user.email, now)).catch(e=>{});
-                        UI.showToast("Seeded 5 records to DB");
+                        for(let i=0; i<5; i++) {
+                            const rec = createRandomRecord(appState.user.email, now);
+                            addDoc(getColl('records'), rec).catch(e=>{});
+                        }
+                        UI.showToast("Seeding 5 records...");
                     } catch(e) {}
                 }
             },
@@ -508,15 +586,18 @@
                 UI.renderLogin();
             },
             
-            // Refreshes the view based on current tab
             refreshCurrentView: () => {
                 if (window.currentTab === 'dashboard') { UI.refreshStats(); UI.renderTodayTable(); }
                 if (window.currentTab === 'history') UI.renderHistoryTable();
                 if (window.currentTab === 'group') UI.renderGroupStats();
                 if (window.currentTab === 'config') UI.renderConfigTable();
+                
+                const openModalId = document.getElementById('clientDetailsModal')?.dataset.clientId;
+                if(openModalId && !document.getElementById('clientDetailsModal').classList.contains('hidden')) {
+                    UI.openClientDetailsModal(openModalId);
+                }
             },
 
-            // Login Render
             renderLogin: () => {
                 document.body.innerHTML = `<div class="min-h-screen bg-zinc-50 flex items-center justify-center p-4 font-inter"><div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 border border-zinc-100"><div class="text-center mb-8"><h1 class="text-2xl font-black text-brand-black tracking-tighter mb-2">Totally RAD Beauty</h1><p class="text-xs text-zinc-400 font-medium uppercase tracking-widest">Clinic Performance Portal</p></div><form id="loginForm" class="space-y-4"><div><label class="block text-[10px] font-bold text-zinc-400 uppercase mb-1">Email Address</label><input type="email" name="email" required class="w-full border border-zinc-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-brand-pink focus:border-brand-pink outline-none transition-all" placeholder="name@totallyradbeauty.com"></div><div><label class="block text-[10px] font-bold text-zinc-400 uppercase mb-1">Password</label><input type="password" name="password" required class="w-full border border-zinc-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-brand-pink focus:border-brand-pink outline-none transition-all" placeholder="••••••••"></div><button type="submit" class="w-full bg-brand-black text-white rounded-lg py-3.5 text-xs font-bold uppercase tracking-widest hover:bg-zinc-800 transition-transform active:scale-95 shadow-lg">Sign In</button></form><div class="mt-6 text-center"><p class="text-[10px] text-zinc-400">Restricted Access. Authorized Personnel Only.</p></div></div></div>`;
                 document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -526,7 +607,6 @@
                 });
             },
 
-            // Helper methods for rows/inputs
             addServiceRow: (containerId = 'serviceRows', preselectedValue = '', preselectedAmount = '') => {
                 const container = document.getElementById(containerId);
                 const div = document.createElement('div'); div.className = "service-row flex space-x-2 mb-2 items-center";
@@ -676,7 +756,6 @@
             renderDashboard: () => {
                 const isAdmin = appState.user.role === 'admin';
                 const minuteOpts = Array.from({length: 12}, (_, i) => i * 5).map(m => `<option value="${m}">${m}m</option>`).join('');
-                
                 document.body.innerHTML = `
                     <div class="min-h-screen bg-zinc-50 flex flex-col font-inter">
                         <!-- MODALS -->
@@ -690,50 +769,22 @@
                             </div>
                         </div>
 
-                        <!-- 2. Client Details Modal (View/Add Notes) -->
+                        <!-- 2. Client Details Modal -->
                         <div id="clientDetailsModal" class="fixed inset-0 bg-black bg-opacity-50 z-[105] hidden flex items-center justify-center p-4">
                             <div class="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[85vh]">
-                                <div class="p-5 border-b border-zinc-100 bg-zinc-50 rounded-t-xl">
-                                    <div class="flex justify-between items-start">
-                                        <div><h3 id="cd-name" class="text-lg font-black text-brand-black leading-tight"></h3><p id="cd-email" class="text-xs text-zinc-500 font-medium"></p></div>
-                                        <div class="flex space-x-2"><button id="cd-edit-btn" class="text-zinc-400 hover:text-brand-pink p-1"><i class="fas fa-pencil-alt"></i></button><button onclick="UI.closeClientDetailsModal()" class="text-zinc-400 hover:text-zinc-600 p-1"><i class="fas fa-times"></i></button></div>
-                                    </div>
-                                    <div class="flex space-x-2 mt-4">
-                                        <button onclick="UI.toggleClientFilter('all')" id="filter-btn-all" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full bg-brand-black text-white">All</button>
-                                        <button onclick="UI.toggleClientFilter('services')" id="filter-btn-services" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full bg-zinc-100 text-zinc-500">Services</button>
-                                        <button onclick="UI.toggleClientFilter('notes')" id="filter-btn-notes" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full bg-zinc-100 text-zinc-500">Notes</button>
-                                    </div>
-                                </div>
-                                <div class="flex-1 overflow-y-auto p-5 space-y-3" id="cd-notes-list"></div>
-                                <div class="p-4 border-t border-zinc-100 bg-white rounded-b-xl">
-                                    <div class="flex items-center space-x-2"><textarea id="new-note-input" placeholder="Type a new note..." class="flex-1 border border-zinc-200 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none resize-none" rows="1" style="min-height: 38px;"></textarea><button id="cd-add-note-btn" class="bg-brand-black text-white w-8 h-8 rounded-lg flex items-center justify-center hover:bg-zinc-800 transition-colors self-end"><i class="fas fa-paper-plane text-xs"></i></button></div>
-                                </div>
+                                <div class="p-5 border-b border-zinc-100 bg-zinc-50 rounded-t-xl"><div class="flex justify-between items-start"><div><h3 id="cd-name" class="text-lg font-black text-brand-black leading-tight"></h3><p id="cd-email" class="text-xs text-zinc-500 font-medium"></p></div><div class="flex space-x-2"><button id="cd-edit-btn" class="text-zinc-400 hover:text-brand-pink p-1"><i class="fas fa-pencil-alt"></i></button><button onclick="UI.closeClientDetailsModal()" class="text-zinc-400 hover:text-zinc-600 p-1"><i class="fas fa-times"></i></button></div></div><div class="flex space-x-2 mt-4"><button onclick="UI.toggleClientFilter('all')" id="filter-btn-all" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full bg-brand-black text-white">All</button><button onclick="UI.toggleClientFilter('services')" id="filter-btn-services" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full bg-zinc-100 text-zinc-500">Services</button><button onclick="UI.toggleClientFilter('notes')" id="filter-btn-notes" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full bg-zinc-100 text-zinc-500">Notes</button></div></div>
+                                <div class="flex-1 overflow-y-auto p-5 space-y-3" id="cd-notes-list"></div><div class="p-4 border-t border-zinc-100 bg-white rounded-b-xl"><div class="flex items-center space-x-2"><textarea id="new-note-input" placeholder="Type a new note..." class="flex-1 border border-zinc-200 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none resize-none" rows="1" style="min-height: 38px;"></textarea><button id="cd-add-note-btn" class="bg-brand-black text-white w-8 h-8 rounded-lg flex items-center justify-center hover:bg-zinc-800 transition-colors self-end"><i class="fas fa-paper-plane text-xs"></i></button></div></div>
                             </div>
                         </div>
 
                         <!-- 3. Edit Client Details Modal -->
                         <div id="clientModal" class="fixed inset-0 bg-black bg-opacity-50 z-[110] hidden flex items-center justify-center p-4">
-                            <div class="bg-white rounded-xl shadow-2xl w-full max-w-xs p-6">
-                                <h3 class="text-sm font-black text-brand-black uppercase tracking-widest mb-4">Edit Client</h3>
-                                <form id="clientEditForm" class="space-y-3">
-                                    <input type="hidden" id="clientEditId">
-                                    <div><label class="text-[9px] font-bold text-zinc-400 uppercase">Name</label><input type="text" id="clientEditName" required class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none"></div>
-                                    <div><label class="text-[9px] font-bold text-zinc-400 uppercase">Email</label><input type="email" id="clientEditEmail" class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none"></div>
-                                    <div class="flex space-x-2 pt-2"><button type="button" onclick="UI.closeClientModal()" class="flex-1 py-2 bg-zinc-100 text-zinc-600 rounded text-xs font-bold hover:bg-zinc-200">Cancel</button><button type="submit" class="flex-1 py-2 bg-brand-black text-white rounded text-xs font-bold hover:bg-zinc-800">Save</button></div>
-                                </form>
-                            </div>
+                            <div class="bg-white rounded-xl shadow-2xl w-full max-w-xs p-6"><h3 class="text-sm font-black text-brand-black uppercase tracking-widest mb-4">Edit Client</h3><form id="clientEditForm" class="space-y-3"><input type="hidden" id="clientEditId"><div><label class="text-[9px] font-bold text-zinc-400 uppercase">Name</label><input type="text" id="clientEditName" required class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none"></div><div><label class="text-[9px] font-bold text-zinc-400 uppercase">Email</label><input type="email" id="clientEditEmail" class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none"></div><div class="flex space-x-2 pt-2"><button type="button" onclick="UI.closeClientModal()" class="flex-1 py-2 bg-zinc-100 text-zinc-600 rounded text-xs font-bold hover:bg-zinc-200">Cancel</button><button type="submit" class="flex-1 py-2 bg-brand-black text-white rounded text-xs font-bold hover:bg-zinc-800">Save</button></div></form></div>
                         </div>
 
                         <!-- 4. Edit Note Modal -->
                         <div id="noteModal" class="fixed inset-0 bg-black bg-opacity-50 z-[110] hidden flex items-center justify-center p-4">
-                            <div class="bg-white rounded-xl shadow-2xl w-full max-w-xs p-6">
-                                <h3 class="text-sm font-black text-brand-black uppercase tracking-widest mb-4">Edit Note</h3>
-                                <form id="noteEditForm" class="space-y-3">
-                                    <input type="hidden" id="noteEditClientId"><input type="hidden" id="noteEditId">
-                                    <textarea id="noteEditText" rows="6" class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none"></textarea>
-                                    <div class="flex space-x-2 pt-2"><button type="button" onclick="UI.closeNoteModal()" class="flex-1 py-2 bg-zinc-100 text-zinc-600 rounded text-xs font-bold hover:bg-zinc-200">Cancel</button><button type="submit" class="flex-1 py-2 bg-brand-black text-white rounded text-xs font-bold hover:bg-zinc-800">Save</button></div>
-                                </form>
-                            </div>
+                            <div class="bg-white rounded-xl shadow-2xl w-full max-w-xs p-6"><h3 class="text-sm font-black text-brand-black uppercase tracking-widest mb-4">Edit Note</h3><form id="noteEditForm" class="space-y-3"><input type="hidden" id="noteEditClientId"><input type="hidden" id="noteEditId"><textarea id="noteEditText" rows="6" class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none"></textarea><div class="flex space-x-2 pt-2"><button type="button" onclick="UI.closeNoteModal()" class="flex-1 py-2 bg-zinc-100 text-zinc-600 rounded text-xs font-bold hover:bg-zinc-200">Cancel</button><button type="submit" class="flex-1 py-2 bg-brand-black text-white rounded text-xs font-bold hover:bg-zinc-800">Save</button></div></form></div>
                         </div>
 
                         <!-- 5. New Entry Modal -->
@@ -742,52 +793,27 @@
                                 <div class="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50"><h3 class="text-sm font-bold text-brand-black uppercase tracking-wider">New Entry</h3><button onclick="UI.closeEntryModal()" class="text-zinc-400 hover:text-black transition-colors"><i class="fas fa-times"></i></button></div>
                                 <form id="dataEntryForm" class="p-6 space-y-4">
                                     <div class="flex justify-around border-b border-zinc-100 pb-4"><label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="service" checked onchange="UI.toggleEntryFields()" class="accent-brand-pink"><span class="text-[10px] font-bold mt-1 uppercase text-zinc-500">Service Only</span></label><label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="service_product" onchange="UI.toggleEntryFields()" class="accent-brand-pink"><span class="text-[10px] font-bold mt-1 uppercase text-zinc-500">Svc+Prod</span></label><label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="product" onchange="UI.toggleEntryFields()" class="accent-brand-pink"><span class="text-[10px] font-bold mt-1 uppercase text-zinc-500">Product Only</span></label></div>
-                                    <div class="grid grid-cols-2 gap-3"><div><label class="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Date</label><input type="date" name="entryDate" required class="w-full rounded border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none shadow-sm"></div><div><label class="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Client</label><input type="text" name="clientName" list="clientOptions" required class="w-full rounded border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none shadow-sm" placeholder="Search or Enter" oninput="UI.checkClientStatus(this)"><datalist id="clientOptions"></datalist></div></div>
-                                    <div id="serviceFields" class="space-y-2">
-                                        <label class="text-[10px] font-black uppercase text-zinc-400">Services</label>
-                                        <div id="serviceRows" class="space-y-2"></div>
-                                        <button type="button" onclick="UI.addServiceRow()" class="text-[10px] font-bold text-brand-pink hover:underline">+ Add Another Service</button>
-                                    </div>
+                                    <div class="grid grid-cols-2 gap-3"><div><label class="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Date</label><input type="date" name="entryDate" required class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none shadow-sm"></div><div><label class="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Client</label><input type="text" name="clientName" list="clientOptions" required class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none shadow-sm" placeholder="Search or Enter" oninput="UI.checkClientStatus(this)"><datalist id="clientOptions"></datalist></div></div>
+                                    <div id="serviceFields" class="space-y-2"><label class="text-[10px] font-black uppercase text-zinc-400">Services</label><div id="serviceRows" class="space-y-2"></div><button type="button" onclick="UI.addServiceRow()" class="text-[10px] font-bold text-brand-pink hover:underline">+ Add Another Service</button></div>
                                     <div id="productFields" class="hidden"><label class="text-[10px] font-black uppercase text-zinc-400">Product Amount ($)</label><input type="number" name="productAmount" step="0.01" class="w-full rounded border border-zinc-200 rounded p-2 text-xs bg-brand-lightpink/20 shadow-sm focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none" placeholder="Product Amount $"></div>
-                                    <div id="durationFields">
-                                        <label class="text-[10px] font-black uppercase text-zinc-400">Duration</label>
-                                        <div class="flex space-x-2"><select name="durationHours" class="w-1/2 rounded border border-zinc-200 p-2 text-xs shadow-sm focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none"><option value="0">0h</option><option value="1" selected>1h</option><option value="2">2h</option><option value="3">3h</option><option value="4">4h</option></select><select name="durationMinutes" class="w-1/2 rounded border border-zinc-200 p-2 text-xs shadow-sm focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none">${minuteOpts}</select></div>
-                                    </div>
+                                    <div id="durationFields"><label class="text-[10px] font-black uppercase text-zinc-400">Duration</label><div class="flex space-x-2"><select name="durationHours" class="w-1/2 rounded border border-zinc-200 p-2 text-xs shadow-sm focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none"><option value="0">0h</option><option value="1" selected>1h</option><option value="2">2h</option><option value="3">3h</option><option value="4">4h</option></select><select name="durationMinutes" class="w-1/2 rounded border border-zinc-200 p-2 text-xs shadow-sm focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none">${minuteOpts}</select></div></div>
                                     <div class="flex space-x-4 pt-2"><label class="flex items-center cursor-pointer"><input type="checkbox" name="isNew" class="accent-brand-pink"> <span class="ml-2 text-xs font-medium text-zinc-600">New Client</span></label><label class="flex items-center cursor-pointer"><input type="checkbox" name="isRebook" class="accent-brand-pink"> <span class="ml-2 text-xs font-medium text-zinc-600">Rebooked</span></label></div>
                                     <button type="submit" class="w-full py-3 bg-brand-black text-white rounded text-xs font-black uppercase tracking-widest hover:bg-zinc-800 transition-colors shadow-lg active:scale-[0.98]">Confirm Entry</button>
                                 </form>
                             </div>
                         </div>
 
-                        <!-- 6. Edit Record Modal (Fixed) -->
+                        <!-- 6. Edit Record Modal -->
                         <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 z-[90] hidden flex items-center justify-center p-4">
                             <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
                                 <h3 class="text-xs font-black uppercase tracking-widest mb-4 text-zinc-400">Edit Record</h3>
                                 <form id="editForm" class="p-6 space-y-4">
                                     <div class="flex justify-around border-b border-zinc-100 pb-4"><label class="flex flex-col items-center cursor-pointer"><input type="radio" name="editEntryType" value="service" onchange="UI.toggleEditEntryFields()" class="accent-brand-pink"><span class="text-[10px] font-bold mt-1 uppercase text-zinc-500">Service Only</span></label><label class="flex flex-col items-center cursor-pointer"><input type="radio" name="editEntryType" value="service_product" onchange="UI.toggleEditEntryFields()" class="accent-brand-pink"><span class="text-[10px] font-bold mt-1 uppercase text-zinc-500">Svc+Prod</span></label><label class="flex flex-col items-center cursor-pointer"><input type="radio" name="editEntryType" value="product" onchange="UI.toggleEditEntryFields()" class="accent-brand-pink"><span class="text-[10px] font-bold mt-1 uppercase text-zinc-500">Product Only</span></label></div>
                                     <div class="grid grid-cols-2 gap-3"><div><label class="text-[10px] font-bold uppercase text-zinc-400">Date</label><input type="date" name="editDate" required class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink outline-none"></div><div><label class="text-[10px] font-bold uppercase text-zinc-400">Client</label><input type="text" name="editClientName" required class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink outline-none" placeholder="Client Name" oninput="UI.checkEditClientStatus(this)"></div></div>
-                                    
-                                    <div id="editServiceFields" class="space-y-4">
-                                        <label class="text-[10px] font-bold uppercase text-zinc-400">Services</label>
-                                        <div id="editServiceRows" class="space-y-2"></div>
-                                        <button type="button" onclick="UI.addServiceRow('editServiceRows')" class="text-[10px] font-bold text-brand-pink hover:underline">+ Add Another Service</button>
-                                    </div>
-
-                                    <div id="editProductFields" class="hidden">
-                                        <label class="text-[10px] font-bold uppercase text-zinc-400">Product Amount ($)</label>
-                                        <input type="number" name="editProductAmount" step="0.01" class="w-full border border-zinc-200 rounded p-2 text-xs bg-brand-lightpink/20 focus:ring-1 focus:ring-brand-pink outline-none">
-                                    </div>
-
-                                    <div id="editDurationFields">
-                                        <label class="text-[10px] font-bold uppercase text-zinc-400">Duration</label>
-                                        <div class="flex space-x-2">
-                                            <select name="editDurationHours" class="w-1/2 rounded border border-zinc-200 p-2 text-xs focus:ring-1 focus:ring-brand-pink outline-none"><option value="0">0h</option><option value="1">1h</option><option value="2">2h</option><option value="3">3h</option><option value="4">4h</option></select>
-                                            <select name="editDurationMinutes" class="w-1/2 rounded border border-zinc-200 p-2 text-xs focus:ring-1 focus:ring-brand-pink outline-none">${minuteOpts}</select>
-                                        </div>
-                                    </div>
-                                    
+                                    <div id="editServiceFields" class="space-y-4"><label class="text-[10px] font-bold uppercase text-zinc-400">Services</label><div id="editServiceRows" class="space-y-2"></div><button type="button" onclick="UI.addServiceRow('editServiceRows')" class="text-[10px] font-bold text-brand-pink hover:underline">+ Add Another Service</button></div>
+                                    <div id="editProductFields" class="hidden"><label class="text-[10px] font-bold uppercase text-zinc-400">Product Amount ($)</label><input type="number" name="editProductAmount" step="0.01" class="w-full border border-zinc-200 rounded p-2 text-xs bg-brand-lightpink/20 focus:ring-1 focus:ring-brand-pink outline-none"></div>
+                                    <div id="editDurationFields"><label class="text-[10px] font-bold uppercase text-zinc-400">Duration</label><div class="flex space-x-2"><select name="editDurationHours" class="w-1/2 rounded border border-zinc-200 p-2 text-xs focus:ring-1 focus:ring-brand-pink outline-none"><option value="0">0h</option><option value="1">1h</option><option value="2">2h</option><option value="3">3h</option><option value="4">4h</option></select><select name="editDurationMinutes" class="w-1/2 rounded border border-zinc-200 p-2 text-xs focus:ring-1 focus:ring-brand-pink outline-none">${minuteOpts}</select></div></div>
                                     <div class="flex space-x-4 pt-2"><label class="flex items-center cursor-pointer"><input type="checkbox" name="editIsNew" class="accent-brand-pink"> <span class="ml-2 text-xs font-medium text-zinc-600">New Client</span></label><label class="flex items-center cursor-pointer"><input type="checkbox" name="editIsRebook" class="accent-brand-pink"> <span class="ml-2 text-xs font-medium text-zinc-600">Rebooked</span></label></div>
-
                                     <div class="flex space-x-2 pt-2"><button type="button" onclick="UI.closeEditModal()" class="flex-1 py-2 bg-zinc-100 rounded text-[10px] font-black uppercase tracking-wider text-zinc-600 hover:bg-zinc-200">Cancel</button><button type="submit" class="flex-1 py-2 bg-brand-black text-white rounded text-[10px] font-black uppercase tracking-wider hover:bg-zinc-800">Update</button></div>
                                 </form>
                             </div>
@@ -814,7 +840,6 @@
                     e.preventDefault(); const fd = new FormData(e.target);
                     const entryType = fd.get('entryType');
                     
-                    // Parse multiple services if applicable
                     let servicesList = [];
                     let totalServiceAmt = 0;
                     if (entryType !== 'product') {
@@ -832,7 +857,6 @@
                     const h = parseInt(fd.get('durationHours')||0);
                     const m = parseInt(fd.get('durationMinutes')||0);
                     
-                    // VALIDATION
                     if (entryType !== 'product') {
                         if (h === 0 && m === 0) { UI.showToast("Please select a valid duration.", "error"); return; }
                         if (totalServiceAmt === 0 && entryType === 'service') { UI.showToast("Service amount cannot be 0.", "error"); return; }
@@ -869,7 +893,6 @@
                     const h = parseInt(fd.get('editDurationHours')||0); 
                     const m = parseInt(fd.get('editDurationMinutes')||0); 
                     
-                    // Validation for Edit
                     if (entryType !== 'product') {
                         if (h === 0 && m === 0) { UI.showToast("Duration cannot be 0.", "error"); return; }
                          if (totalServiceAmt === 0 && entryType === 'service') { UI.showToast("Service amount cannot be 0.", "error"); return; }
@@ -901,37 +924,20 @@
                 window.currentTab = tabName;
                 document.querySelectorAll('nav button').forEach(b => {
                     const isActive = b.id === `nav-${tabName}`;
-                    // Update Active Tab Styling (Pink Text vs Gray)
-                    if (isActive) {
-                        b.classList.add('text-brand-pink');
-                        b.classList.remove('text-zinc-500');
-                    } else {
-                        b.classList.remove('text-brand-pink');
-                        b.classList.add('text-zinc-500');
-                    }
+                    if (isActive) { b.classList.add('text-brand-pink'); b.classList.remove('text-zinc-500'); } 
+                    else { b.classList.remove('text-brand-pink'); b.classList.add('text-zinc-500'); }
                 });
                 const main = document.getElementById('main-content');
-                if (tabName === 'dashboard') {
-                    main.innerHTML = `<div id="stats-container"></div><div id="activity-container"></div>`;
-                    UI.refreshStats(); UI.renderTodayTable();
-                } else if (tabName === 'history') {
-                    main.innerHTML = `<div id="history-container"></div>`;
-                    UI.renderHistoryTable();
-                } else if (tabName === 'clients') {
-                    main.innerHTML = `<div id="clients-container"></div>`;
-                    UI.renderClientsList();
-                } else if (tabName === 'group') {
-                    main.innerHTML = `<div id="group-stats-container"></div>`;
-                    UI.renderGroupStats();
-                } else if (tabName === 'config') {
-                    main.innerHTML = `<div id="config-container"></div>`;
-                    UI.renderConfigTable();
-                }
+                if (tabName === 'dashboard') { main.innerHTML = `<div id="stats-container"></div><div id="activity-container"></div>`; UI.refreshStats(); UI.renderTodayTable(); } 
+                else if (tabName === 'history') { main.innerHTML = `<div id="history-container"></div>`; UI.renderHistoryTable(); } 
+                else if (tabName === 'clients') { main.innerHTML = `<div id="clients-container"></div>`; UI.renderClientsList(); } 
+                else if (tabName === 'group') { main.innerHTML = `<div id="group-stats-container"></div>`; UI.renderGroupStats(); } 
+                else if (tabName === 'config') { main.innerHTML = `<div id="config-container"></div>`; UI.renderConfigTable(); }
             },
             refreshStats: () => { if (window.currentTab !== 'dashboard') return; const m = Logic.getMetrics(null, appState.currentDate); const cm = appState.currentDate.toLocaleString('default', { month: 'long', year: 'numeric' }); const ah = (m.totalRevenue / Math.max(m.totalRevenue, m.monthlyTarget, 1)) * 100; const th = (m.monthlyTarget / Math.max(m.totalRevenue, m.monthlyTarget, 1)) * 100; document.getElementById('stats-container').innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6"><div class="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm flex flex-col justify-center min-h-[350px]"><div class="flex justify-between items-center mb-8"><h3 class="text-[10px] font-black text-brand-black uppercase tracking-widest">Progress</h3><div class="flex items-center space-x-1 bg-zinc-50 rounded-lg p-1 border border-zinc-100"><button onclick="Logic.changeMonth(-1)" class="px-1 text-zinc-500 hover:text-brand-black"><i class="fas fa-chevron-left text-[10px]"></i></button><span class="text-[9px] font-black w-20 text-center uppercase text-brand-black">${cm}</span><button onclick="Logic.changeMonth(1)" class="px-1 text-zinc-500 hover:text-brand-black"><i class="fas fa-chevron-right text-[10px]"></i></button></div></div><div class="flex justify-center items-end space-x-10 h-64 pb-2 relative mx-auto w-full max-w-[280px]"><div class="flex flex-col items-center w-14 h-full justify-end relative"><div class="absolute right-full mr-4 flex flex-col items-end whitespace-nowrap" style="bottom: ${ah}%"><span class="text-[11px] font-black text-brand-pink">${m.percentageToTarget.toFixed(0)}%</span><span class="text-[10px] font-bold text-brand-pink">$${m.totalRevenue.toLocaleString()}</span></div><div style="height: ${ah}%;" class="w-full bg-brand-pink rounded-t shadow-md transition-all duration-1000"></div><span class="mt-3 text-[10px] font-black text-zinc-400 uppercase">Actual</span></div><div class="flex flex-col items-center w-14 h-full justify-end relative"><div class="absolute left-full ml-4 flex flex-col items-start whitespace-nowrap" style="bottom: ${th}%"><span class="text-[10px] font-bold text-zinc-400">$${m.monthlyTarget.toLocaleString()}</span></div><div style="height: ${th}%;" class="w-full bg-zinc-100 border-t border-x border-zinc-200 rounded-t shadow-sm transition-all duration-1000"></div><span class="mt-3 text-[10px] font-black text-zinc-400 uppercase tracking-tighter">Goal</span></div></div></div><div class="flex flex-col space-y-3"><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Total Revenue</p><p class="text-xl font-black text-brand-black">$${m.totalRevenue.toLocaleString()}</p></div><div class="text-right text-[9px] font-bold text-zinc-400 uppercase leading-relaxed">Svc: $${m.serviceRevenue}<br>Prod: $${m.productRevenue}</div></div><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Success Rate</p><p class="text-xl font-black text-brand-pink">${m.percentageToTarget.toFixed(1)}%</p></div><div class="text-right text-[10px] font-bold text-zinc-400 uppercase">of Target</div></div><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Rebooking Rate</p><p class="text-xl font-black text-brand-darkpink">${m.rebookingRate.toFixed(1)}%</p></div><div class="text-right text-[9px] font-bold text-zinc-400 uppercase leading-none">${m.rebookedClients} of ${m.totalClients} clients rebooked</div></div><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">New Clients</p><p class="text-xl font-black text-brand-black">${m.newClients}</p></div><div class="text-right text-[9px] font-bold text-zinc-400 uppercase">First Visits</div></div></div></div>`; },
             renderGroupStats: () => { const m = Logic.getGroupMetrics(appState.currentDate); const ah = (m.totalRevenue / Math.max(m.totalRevenue, m.monthlyTarget, 1)) * 100; const th = (m.monthlyTarget / Math.max(m.totalRevenue, m.monthlyTarget, 1)) * 100; const cols = ['bg-brand-pink', 'bg-zinc-800', 'bg-zinc-400', 'bg-brand-lightpink', 'bg-zinc-600']; const segs = m.individualStats.map((s, i) => s.revenue <= 0 ? '' : `<div style="height: ${(s.revenue/m.totalRevenue)*100}%" class="${cols[i%cols.length]} border-b border-white/20 last:border-0"></div>`).join(''); const legs = m.individualStats.map((s, i) => `<div class="flex items-center text-[9px] text-zinc-600 font-bold"><span class="w-2.5 h-2.5 rounded-full ${cols[i % cols.length]} mr-1 shadow-sm"></span><span>${s.name}</span></div>`).join('');
                 const tallyHtml = Object.entries(m.serviceTally || {}).sort((a,b) => b[1] - a[1]).map(([name, count]) => `<div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded border border-gray-100"><span class="text-[10px] text-gray-600 font-medium truncate w-3/4" title="${name}">${name}</span><span class="text-[10px] font-black text-gray-900 bg-white px-2 py-0.5 rounded shadow-sm border border-gray-100">${count}</span></div>`).join('');
-                document.getElementById('group-stats-container').innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6"><div class="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm flex flex-col justify-center min-h-[380px]"><div class="flex justify-between items-center mb-10"><h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-10 text-center">Team Visuals</h3><div class="flex items-center space-x-1 bg-gray-50 rounded-lg p-0.5 border"><button onclick="Logic.changeMonth(-1)" class="px-1"><i class="fas fa-chevron-left text-[10px]"></i></button><span class="text-[9px] font-black w-20 text-center uppercase">${appState.currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</span><button onclick="Logic.changeMonth(1)" class="px-1"><i class="fas fa-chevron-right text-[10px]"></i></button></div></div><div class="flex justify-center items-end space-x-12 h-64 relative mx-auto w-full max-w-[300px] pb-4"><div class="flex flex-col items-center w-16 h-full justify-end relative"><div class="absolute right-full mr-4 flex flex-col items-end whitespace-nowrap" style="bottom: ${ah}%"><span class="text-[11px] font-bold text-brand-pink">${m.percentageToTarget.toFixed(1)}%</span><span class="text-[10px] font-bold text-brand-pink">$${m.totalRevenue.toLocaleString()}</span></div><div style="height: ${ah}%;" class="w-full rounded-t-lg overflow-hidden flex flex-col-reverse shadow-md transition-all duration-1000">${segs}</div><span class="mt-3 text-[10px] font-bold text-zinc-400 uppercase">Actual</span></div><div class="flex flex-col items-center w-16 h-full justify-end relative"><div class="absolute left-full ml-4 flex flex-col items-start whitespace-nowrap" style="bottom: ${th}%"><span class="text-[10px] font-bold text-blue-600">$${m.monthlyTarget.toLocaleString()}</span></div><div style="height:100%" class="w-full bg-blue-50 border-t border-x border-blue-100 rounded-t shadow-sm transition-all duration-1000"></div><span class="mt-3 text-[10px] font-bold text-zinc-400 uppercase tracking-tighter">Goal</span></div></div><div class="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-4 pt-4 border-t border-zinc-100">${legs}</div></div><div class="flex flex-col space-y-3"><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Team Revenue</p><p class="text-xl font-black text-brand-black">$${m.totalRevenue.toLocaleString()}</p></div><div class="text-right text-[9px] font-bold text-zinc-400 uppercase leading-relaxed">Svc: $${m.serviceRevenue}<br>Prod: $${m.productRevenue}</div></div><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Overall Achievement</p><p class="text-xl font-black text-brand-pink">${m.percentageToTarget.toFixed(1)}%</p></div><div class="text-right text-[10px] font-bold text-zinc-400 uppercase">Target Progress</div></div><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Avg Rebooking</p><p class="text-xl font-black text-brand-darkpink">${m.rebookingRate.toFixed(1)}%</p></div><div class="text-right text-[9px] font-bold text-zinc-400 uppercase leading-none">${m.rebookedClients} of ${m.totalClients} clients rebooked</div></div><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Team New Clients</p><p class="text-xl font-black text-brand-black">${m.newClients}</p></div><div class="text-right text-[10px] font-bold text-zinc-400 uppercase">Total Acquisitions</div></div></div></div><div class="bg-white rounded-xl border border-zinc-100 shadow-sm overflow-x-auto p-4 mb-4"><h3 class="text-sm font-bold text-brand-black mb-4">Therapist Breakdown</h3><table class="min-w-full"><thead class="bg-zinc-50 border-b border-zinc-100"><tr class="text-[10px] text-zinc-400 uppercase font-black"><th class="text-left py-3 px-2">Therapist</th><th class="text-right py-3 px-2 whitespace-nowrap">Total Rev</th><th class="text-right py-3 px-2 whitespace-nowrap">Svc ($)</th><th class="text-right py-3 px-2 whitespace-nowrap">Prod ($)</th><th class="text-right py-3 px-2 whitespace-nowrap">Target %</th><th class="text-right py-3 px-2 whitespace-nowrap">Rebook %</th><th class="text-center py-3 px-2">Clients</th><th class="text-center py-3 px-2">Rebooked</th></tr></thead><tbody class="divide-y divide-zinc-100">${m.individualStats.map(s => `<tr><td class="py-3 px-2 text-xs font-bold text-brand-black">${s.name}</td><td class="py-3 px-2 text-xs text-right font-bold text-brand-black">$${s.revenue.toLocaleString()}</td><td class="py-3 px-2 text-xs text-right text-zinc-400">$${s.serviceRevenue.toLocaleString()}</td><td class="py-3 px-2 text-xs text-right text-brand-pink font-medium">$${s.productRevenue.toLocaleString()}</td><td class="py-3 px-2 text-xs text-right text-zinc-400">${s.targetPct.toFixed(1)}%</td><td class="py-3 px-2 text-xs text-right font-bold text-brand-black">${s.rebookRate.toFixed(1)}%</td><td class="py-3 px-2 text-xs text-center text-zinc-400">${s.clients}</td><td class="py-3 px-2 text-xs text-center text-zinc-400">${s.rebooked}</td></tr>`).join('')}</tbody></table></div><div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-4"><h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Top Services This Month</h3><div class="flex flex-col space-y-2 max-h-64 overflow-y-auto">${tallyHtml || '<p class="text-xs text-gray-400 text-center italic">No services recorded this month.</p>'}</div></div>`; 
+                document.getElementById('group-stats-container').innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6"><div class="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm flex flex-col justify-center min-h-[380px]"><div class="flex justify-between items-center mb-10"><h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-10 text-center">Team Visuals</h3><div class="flex items-center space-x-1 bg-gray-50 rounded-lg p-0.5 border"><button onclick="Logic.changeMonth(-1)" class="px-1"><i class="fas fa-chevron-left text-[10px]"></i></button><span class="text-[9px] font-black w-20 text-center uppercase">${cm}</span><button onclick="Logic.changeMonth(1)" class="px-1"><i class="fas fa-chevron-right text-[10px]"></i></button></div></div><div class="flex justify-center items-end space-x-12 h-64 relative mx-auto w-full max-w-[300px] pb-4"><div class="flex flex-col items-center w-16 h-full justify-end relative"><div class="absolute right-full mr-4 flex flex-col items-end whitespace-nowrap" style="bottom: ${ah}%"><span class="text-[11px] font-bold text-brand-pink">${m.percentageToTarget.toFixed(1)}%</span><span class="text-[10px] font-bold text-brand-pink">$${m.totalRevenue.toLocaleString()}</span></div><div style="height: ${ah}%;" class="w-full rounded-t-lg overflow-hidden flex flex-col-reverse shadow-md transition-all duration-1000">${segs}</div><span class="mt-3 text-[10px] font-bold text-zinc-400 uppercase">Actual</span></div><div class="flex flex-col items-center w-16 h-full justify-end relative"><div class="absolute left-full ml-4 flex flex-col items-start whitespace-nowrap" style="bottom: ${th}%"><span class="text-[10px] font-bold text-blue-600">$${m.monthlyTarget.toLocaleString()}</span></div><div style="height:100%" class="w-full bg-blue-50 border-t border-x border-blue-100 rounded-t shadow-sm transition-all duration-1000"></div><span class="mt-3 text-[10px] font-bold text-zinc-400 uppercase tracking-tighter">Goal</span></div></div><div class="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-4 pt-4 border-t border-zinc-100">${legs}</div></div><div class="flex flex-col space-y-3"><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Team Revenue</p><p class="text-xl font-black text-brand-black">$${m.totalRevenue.toLocaleString()}</p></div><div class="text-right text-[9px] font-bold text-zinc-400 uppercase leading-relaxed">Svc: $${m.serviceRevenue}<br>Prod: $${m.productRevenue}</div></div><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Overall Achievement</p><p class="text-xl font-black text-brand-pink">${m.percentageToTarget.toFixed(1)}%</p></div><div class="text-right text-[10px] font-bold text-zinc-400 uppercase">Target Progress</div></div><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Avg Rebooking</p><p class="text-xl font-black text-brand-darkpink">${m.rebookingRate.toFixed(1)}%</p></div><div class="text-right text-[9px] font-bold text-zinc-400 uppercase leading-none">${m.rebookedClients} of ${m.totalClients} clients rebooked</div></div><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Team New Clients</p><p class="text-xl font-black text-brand-black">${m.newClients}</p></div><div class="text-right text-[10px] font-bold text-zinc-400 uppercase">Total Acquisitions</div></div></div></div><div class="bg-white rounded-xl border border-zinc-100 shadow-sm overflow-x-auto p-4 mb-4"><h3 class="text-sm font-bold text-brand-black mb-4">Therapist Breakdown</h3><table class="min-w-full"><thead class="bg-zinc-50 border-b border-zinc-100"><tr class="text-[10px] text-zinc-400 uppercase font-black"><th class="text-left py-3 px-2">Therapist</th><th class="text-right py-3 px-2 whitespace-nowrap">Total Rev</th><th class="text-right py-3 px-2 whitespace-nowrap">Svc ($)</th><th class="text-right py-3 px-2 whitespace-nowrap">Prod ($)</th><th class="text-right py-3 px-2 whitespace-nowrap">Target %</th><th class="text-right py-3 px-2 whitespace-nowrap">Rebook %</th><th class="text-center py-3 px-2">Clients</th><th class="text-center py-3 px-2">Rebooked</th></tr></thead><tbody class="divide-y divide-zinc-100">${m.individualStats.map(s => `<tr><td class="py-3 px-2 text-xs font-bold text-brand-black">${s.name}</td><td class="py-3 px-2 text-xs text-right font-bold text-brand-black">$${s.revenue.toLocaleString()}</td><td class="py-3 px-2 text-xs text-right text-zinc-400">$${s.serviceRevenue.toLocaleString()}</td><td class="py-3 px-2 text-xs text-right text-brand-pink font-medium">$${s.productRevenue.toLocaleString()}</td><td class="py-3 px-2 text-xs text-right text-zinc-400">${s.targetPct.toFixed(1)}%</td><td class="py-3 px-2 text-xs text-right font-bold text-brand-black">${s.rebookRate.toFixed(1)}%</td><td class="py-3 px-2 text-xs text-center text-zinc-400">${s.clients}</td><td class="py-3 px-2 text-xs text-center text-zinc-400">${s.rebooked}</td></tr>`).join('')}</tbody></table></div><div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-4"><h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Top Services This Month</h3><div class="flex flex-col space-y-2 max-h-64 overflow-y-auto">${tallyHtml || '<p class="text-xs text-gray-400 text-center italic">No services recorded this month.</p>'}</div></div>`; 
             },
             renderTodayTable: () => { const cont = document.getElementById('activity-container'); if (!cont) return; const today = new Date(); today.setHours(0,0,0,0); const records = appState.records.filter(r => { const rd = new Date(r.date); rd.setHours(0,0,0,0); return rd.getTime() === today.getTime() && r.therapistEmail === appState.user.email; }).sort((a, b) => new Date(a.date) - new Date(b.date)); cont.innerHTML = `<div class="bg-white rounded-2xl border border-zinc-100 p-4 shadow-sm"><h3 class="text-[10px] font-black text-brand-black uppercase tracking-widest mb-4">Today's Activity Log</h3><div class="overflow-x-auto"><table class="min-w-full"><thead class="border-b bg-zinc-50 border-zinc-100"><tr class="text-[8px] font-black text-zinc-400 uppercase tracking-tighter"><th class="text-left py-2 px-2 w-16">Date</th><th class="text-left py-2 px-2">Client & Service</th><th class="text-center py-2 px-1 w-12">New</th><th class="text-center py-2 px-1 w-12">Rbk</th><th class="text-right py-2 px-2">Total</th><th class="text-center py-2 px-2 w-20">Actions</th></tr></thead><tbody class="divide-y divide-zinc-100">${records.length === 0 ? '<tr><td colspan="6" class="py-12 text-center text-zinc-300 text-xs italic">No entries for today.</td></tr>' : records.map(r => `<tr class="hover:bg-zinc-50/50"><td class="py-3 px-2 align-top text-[9px] font-black text-zinc-400 uppercase leading-none">${new Date(r.date).toLocaleDateString([], {month:'numeric', day:'numeric'})}</td><td class="py-3 px-2 align-top"><div class="flex flex-col"><span class="text-[11px] font-bold text-brand-black leading-tight">${r.clientName}</span><span class="text-[9px] text-zinc-400 font-medium whitespace-normal">${r.service}</span>${r.duration ? `<span class="text-[8px] font-bold text-zinc-300"><i class="far fa-clock mr-0.5"></i>${r.duration}</span>` : ''}</div></td><td class="py-3 px-1 align-top text-center">${r.isNew ? '<span class="text-[8px] font-black bg-brand-lightpink text-brand-pink px-1 py-0.5 rounded border border-brand-pink/20">NEW</span>' : '—'}</td><td class="py-3 px-1 align-top text-center">${r.isRebook ? '<span class="text-[8px] font-black bg-zinc-100 text-brand-black px-1 py-0.5 rounded border border-zinc-200">REBOOKED</span>' : '—'}</td><td class="py-3 px-2 align-top text-right"><div class="flex flex-col"><span class="text-[11px] font-black text-brand-black leading-none">$${r.totalAmount.toFixed(2)}</span>${r.productAmount > 0 ? `<span class="text-[8px] font-bold text-brand-pink mt-1 leading-none">Incl. $${r.productAmount} P</span>` : ''}</div></td><td class="py-3 px-2 align-top text-center"><div class="flex items-center justify-center space-x-2"><button onclick="UI.openEditModal(${r.id})" class="text-zinc-300 hover:text-brand-pink transition-colors p-1"><i class="fas fa-pencil-alt text-sm"></i></button><button onclick="UI.openDeleteModal(${r.id})" class="text-zinc-200 hover:text-red-500 transition-colors p-1"><i class="fas fa-trash text-sm"></i></button></div></td></tr>`).join('')}</tbody></table></div></div>`; },
             renderHistoryTable: () => { const cont = document.getElementById('history-container'); if (!cont) return; const tm = appState.currentDate.getMonth(); const ty = appState.currentDate.getFullYear(); const cm = appState.currentDate.toLocaleString('default', { month: 'long', year: 'numeric' }); const records = appState.records.filter(r => { const rd = new Date(r.date); return rd.getMonth() === tm && rd.getFullYear() === ty && r.therapistEmail === appState.user.email; }).sort((a, b) => new Date(a.date) - new Date(b.date)); cont.innerHTML = `<div class="bg-white rounded-2xl border border-zinc-100 p-4 shadow-sm"><div class="flex justify-between items-center mb-6"><div class="flex flex-col"><h3 class="text-[10px] font-black text-zinc-300 uppercase tracking-widest leading-none mb-1">Monthly History Log</h3><span class="text-sm font-bold text-brand-black">${cm}</span></div><div class="flex space-x-1"><button onclick="Logic.changeMonth(-1)" class="p-2 bg-zinc-50 rounded-xl text-zinc-500 hover:bg-zinc-100 transition-all"><i class="fas fa-chevron-left text-xs"></i></button><button onclick="Logic.changeMonth(1)" class="p-2 bg-zinc-50 rounded-xl text-zinc-500 hover:bg-zinc-100 transition-all"><i class="fas fa-chevron-right text-xs"></i></button></div></div><div class="overflow-x-auto"><table class="min-w-full"><thead class="bg-zinc-50 border-b border-zinc-100"><tr class="text-[8px] font-black text-zinc-400 uppercase tracking-tighter"><th class="text-left py-2 px-3 w-16">Date</th><th class="text-left py-2 px-3">Client & Info</th><th class="text-center py-2 px-1 w-12">New</th><th class="text-center py-2 px-1 w-12">Rbk</th><th class="text-right py-2 px-3">Total</th><th class="text-center py-2 px-3 w-20">Actions</th></tr></thead><tbody class="divide-y divide-zinc-100">${records.length === 0 ? '<tr><td colspan="6" class="py-12 text-center text-zinc-300 text-xs italic">No data logged for this period.</td></tr>' : records.map(r => `<tr class="hover:bg-zinc-50/50">
