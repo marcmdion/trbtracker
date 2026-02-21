@@ -3,22 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Totally RAD Beauty | Clinic Dashboard v7.6.4</title>
-    
+    <title>TRB | Beauty Clinic Dashboard</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <script>
+        // Minimalistic Light Theme Configuration
         tailwind.config = {
             theme: {
                 extend: {
-                    colors: {
-                        brand: {
-                            black: '#1a1a1a',
-                            pink: '#ec4899', // Pink-500
-                            darkpink: '#be185d', // Pink-700
-                            lightpink: '#fce7f3', // Pink-100
-                        }
-                    },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
                     }
@@ -26,992 +21,1574 @@
             }
         }
     </script>
-    
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            background-color: #f9fafb; /* gray-50 */
+            color: #111827; /* gray-900 */
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+        
+        /* Custom scrollbar for a sleek minimal look */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e5e7eb; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d1d5db; 
+        }
 
+        .hide-scroll::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Input styling overrides */
+        input, select, textarea {
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            color: #111827;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #111827;
+            box-shadow: 0 0 0 1px #111827;
+        }
+
+        /* SVG Icon styles */
+        .nav-icon {
+            width: 24px;
+            height: 24px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        
+        /* Toast animation */
+        @keyframes slideInUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .toast-enter {
+            animation: slideInUp 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="flex h-screen w-full antialiased selection:bg-gray-200 selection:text-gray-900 bg-gray-50 text-gray-900">
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="fixed bottom-24 right-4 z-50 flex flex-col gap-2"></div>
+
+    <!-- APP WRAPPER -->
+    <div id="app-wrapper" class="flex h-full w-full relative hidden flex-col">
+        
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col h-full overflow-hidden relative pb-20">
+            
+            <!-- Top Header -->
+            <header class="bg-white/90 backdrop-blur-md border-b border-gray-200 p-4 flex justify-between items-center sticky top-0 z-20">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center font-bold text-white text-xs">T</div>
+                    <h1 class="text-lg font-bold text-gray-900 tracking-wider">TRB</h1>
+                    <div class="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>
+                    <h2 class="text-lg font-semibold text-gray-500 hidden sm:block" id="page-title">Dashboard</h2>
+                </div>
+                
+                <div class="flex items-center gap-4">
+                    <button onclick="logoutApp()" class="text-gray-400 hover:text-gray-900 transition-colors" title="Logout">
+                        <svg class="nav-icon w-5 h-5" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    </button>
+                    <button onclick="openQuickAddModal()" class="bg-gray-900 hover:bg-gray-800 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors shadow-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        Quick Add
+                    </button>
+                </div>
+            </header>
+
+            <!-- Scrollable Sections Container -->
+            <div class="flex-1 overflow-y-auto p-4 md:p-8" id="sections-container">
+                
+                <!-- SECTION: ME (Dashboard) -->
+                <section id="section-me" class="space-y-6 hidden active-section">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Welcome & Stats -->
+                        <div class="md:col-span-2 space-y-6">
+                            <div class="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
+                                <h3 class="text-2xl font-bold mb-1 text-gray-900">Hello, <span id="dash-name" class="text-gray-500 font-medium">Therapist</span></h3>
+                                <p class="text-gray-500 text-sm mb-6">Here is your performance for <span id="current-month-label">this month</span>.</p>
+                                
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                        <p class="text-gray-500 text-xs mb-1 font-medium">Total Revenue</p>
+                                        <p class="text-xl font-bold text-gray-900" id="stat-revenue">$0</p>
+                                    </div>
+                                    <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                        <p class="text-gray-500 text-xs mb-1 font-medium">Services</p>
+                                        <p class="text-xl font-bold text-gray-900" id="stat-services">$0</p>
+                                    </div>
+                                    <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                        <p class="text-gray-500 text-xs mb-1 font-medium">Retail</p>
+                                        <p class="text-xl font-bold text-gray-900" id="stat-retail">$0</p>
+                                    </div>
+                                    <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                        <p class="text-gray-500 text-xs mb-1 font-medium">Rebooking %</p>
+                                        <p class="text-xl font-bold text-gray-900" id="stat-rebook">0%</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Charts -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
+                                    <h4 class="font-semibold mb-4 text-xs text-gray-400 uppercase tracking-wider">Sales vs Goal</h4>
+                                    <div class="relative h-48 w-full flex justify-center items-center">
+                                        <canvas id="goalChart"></canvas>
+                                    </div>
+                                </div>
+                                <div class="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm">
+                                    <h4 class="font-semibold mb-4 text-xs text-gray-400 uppercase tracking-wider">Revenue Breakdown</h4>
+                                    <div class="relative h-48 w-full flex justify-center items-center">
+                                        <canvas id="breakdownChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Daily Appointments -->
+                        <div class="bg-white border border-gray-200 rounded-2xl flex flex-col h-full shadow-sm overflow-hidden">
+                            <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                                <h4 class="font-semibold text-xs text-gray-500 uppercase tracking-wider">Today's Schedule</h4>
+                                <span class="bg-white border border-gray-200 text-gray-600 font-medium text-xs px-2 py-1 rounded-md" id="today-date-badge">Date</span>
+                            </div>
+                            <div class="p-5 flex-1 overflow-y-auto space-y-3" id="appointments-list">
+                                <!-- Populated via JS -->
+                            </div>
+                            <div class="p-4 border-t border-gray-100 bg-gray-50/50">
+                                <button onclick="openAppointmentModal()" class="w-full bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-gray-700 py-2 rounded-lg text-sm transition font-medium shadow-sm">
+                                    + Add Appointment
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION: HISTORY -->
+                <section id="section-history" class="space-y-6 hidden">
+                    <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                        <div class="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                            <h3 class="font-semibold text-gray-900">Recent Sales</h3>
+                            <select id="history-month-filter" class="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-medium shadow-sm" onchange="renderHistory()">
+                                <!-- Populated via JS -->
+                            </select>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm whitespace-nowrap">
+                                <thead class="bg-gray-50 border-b border-gray-200 text-gray-500">
+                                    <tr>
+                                        <th class="px-6 py-4 font-medium">Date</th>
+                                        <th class="px-6 py-4 font-medium">Client</th>
+                                        <th class="px-6 py-4 font-medium">Therapist</th>
+                                        <th class="px-6 py-4 font-medium">Services ($)</th>
+                                        <th class="px-6 py-4 font-medium">Retail ($)</th>
+                                        <th class="px-6 py-4 font-medium text-right">Total</th>
+                                        <th class="px-6 py-4 font-medium text-center">Tags</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="history-table-body" class="divide-y divide-gray-100">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION: CLIENTS -->
+                <section id="section-clients" class="space-y-6 hidden h-full flex flex-col">
+                    <div class="flex gap-4">
+                        <div class="relative flex-1">
+                            <svg class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            <input type="text" id="client-search" oninput="renderClientsList()" placeholder="Search clients by name or phone..." class="w-full pl-10 pr-4 py-3 rounded-xl bg-white border border-gray-200 focus:border-gray-900 shadow-sm transition-colors">
+                        </div>
+                        <button onclick="openClientModal(null)" class="bg-white border border-gray-200 hover:border-gray-400 text-gray-900 font-medium px-6 py-3 rounded-xl transition-colors shadow-sm whitespace-nowrap">
+                            + New Client
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max" id="clients-grid">
+                        <!-- Populated via JS -->
+                    </div>
+                </section>
+
+                <!-- SECTION: GROUP -->
+                <section id="section-group" class="space-y-6 hidden">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Team Leaderboard -->
+                        <div class="lg:col-span-2 bg-white border border-gray-200 shadow-sm p-6 rounded-2xl">
+                            <h3 class="font-semibold mb-6 text-gray-900">Team Performance (This Week)</h3>
+                            <div class="relative h-64 w-full">
+                                <canvas id="teamChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Top Treatments -->
+                        <div class="bg-white border border-gray-200 shadow-sm p-6 rounded-2xl flex flex-col">
+                            <h3 class="font-semibold mb-6 text-gray-900">Popular Treatments (This Week)</h3>
+                            <div class="flex-1 space-y-4" id="top-treatments-list">
+                                <!-- Populated via JS -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION: SETUP (Manager Only) -->
+                <section id="section-setup" class="space-y-6 hidden">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Staff Management -->
+                        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                            <div class="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                                <h3 class="font-semibold text-gray-900">Staff Management</h3>
+                                <button onclick="openStaffModal()" class="text-xs font-medium bg-gray-900 text-white px-3 py-1.5 rounded-md hover:bg-gray-800 transition shadow-sm">+ Add Staff</button>
+                            </div>
+                            <div class="p-5 space-y-4 bg-white" id="setup-staff-list">
+                                <!-- Populated via JS -->
+                            </div>
+                        </div>
+
+                        <!-- Services Menu -->
+                        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                            <div class="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                                <h3 class="font-semibold text-gray-900">Service Menu</h3>
+                                <button onclick="openServiceModal()" class="text-xs font-medium bg-gray-900 text-white px-3 py-1.5 rounded-md hover:bg-gray-800 transition shadow-sm">+ Add Service</button>
+                            </div>
+                            <div class="p-5 space-y-3 bg-white" id="setup-services-list">
+                                <!-- Populated via JS -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+
+        <!-- Bottom Navigation (Static) -->
+        <nav class="fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-lg border-t border-gray-200 flex justify-center gap-2 sm:gap-12 items-center p-3 pb-safe z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]" id="bottom-nav">
+            <!-- Nav items injected via JS -->
+        </nav>
+    </div>
+
+    <!-- LOGIN OVERLAY -->
+    <div id="login-overlay" class="fixed inset-0 bg-gray-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white border border-gray-200 p-8 rounded-3xl w-full max-w-md shadow-2xl">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 rounded-full bg-gray-900 flex items-center justify-center font-bold text-white text-2xl mx-auto mb-4">T</div>
+                <h1 class="text-2xl font-bold tracking-wider text-gray-900">TRB</h1>
+                <p class="text-gray-500 mt-2 text-sm font-medium" id="login-subtitle">Clinic Staff Portal</p>
+            </div>
+            
+            <form id="login-form" class="space-y-5" onsubmit="handleLogin(event)">
+                <div id="setup-notice" class="hidden bg-gray-100 border border-gray-200 p-3 rounded-lg text-sm text-gray-700 font-medium mb-4 text-center">
+                    First time setup: Create the master manager account.
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Email Address</label>
+                    <input type="email" id="login-email" required class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:border-gray-900 transition-colors">
+                </div>
+                
+                <div id="login-name-field" class="hidden">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Full Name</label>
+                    <input type="text" id="login-name" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:border-gray-900 transition-colors">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">PIN / Password</label>
+                    <input type="password" id="login-pin" required class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:border-gray-900 transition-colors">
+                </div>
+                
+                <button type="submit" class="w-full bg-gray-900 hover:bg-gray-800 text-white shadow-md font-medium py-3 rounded-xl transition-colors mt-2" id="login-btn">
+                    Access Dashboard
+                </button>
+            </form>
+            
+            <div id="loading-overlay" class="hidden absolute inset-0 bg-white/90 flex flex-col items-center justify-center rounded-3xl backdrop-blur-sm z-10">
+                <div class="w-8 h-8 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin"></div>
+                <p class="mt-4 text-sm font-medium animate-pulse text-gray-700">Connecting to Clinic...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALS -->
+
+    <!-- Quick Add Sale Modal -->
+    <div id="modal-quick-add" class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border border-gray-200 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                <h3 class="font-bold text-lg text-gray-900">Log New Sale</h3>
+                <button onclick="closeModal('modal-quick-add')" class="text-gray-400 hover:text-gray-900">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 space-y-5">
+                <form id="form-quick-add" onsubmit="submitQuickAdd(event)" class="space-y-5">
+                    
+                    <!-- Date & Staff -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1 uppercase">Date</label>
+                            <input type="date" id="qa-date" required class="w-full px-3 py-2 rounded-lg text-sm bg-gray-50 border border-gray-200">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1 uppercase">Therapist</label>
+                            <select id="qa-staff" required class="w-full px-3 py-2 rounded-lg text-sm bg-gray-50 border border-gray-200">
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Client Auto-suggest -->
+                    <div class="relative">
+                        <label class="block text-xs font-semibold text-gray-600 mb-1 uppercase">Client Name</label>
+                        <input type="text" id="qa-client-name" autocomplete="off" placeholder="Start typing..." required class="w-full px-3 py-2 rounded-lg text-sm bg-gray-50 border border-gray-200 focus:border-gray-900">
+                        <!-- Dropdown -->
+                        <div id="qa-client-suggestions" class="absolute z-10 w-full bg-white border border-gray-200 mt-1 rounded-lg shadow-xl hidden max-h-40 overflow-y-auto"></div>
+                        <input type="hidden" id="qa-client-id">
+                    </div>
+
+                    <!-- Tags -->
+                    <div class="flex gap-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="qa-is-new" class="accent-gray-900 w-4 h-4 rounded">
+                            <span class="text-sm font-medium text-gray-700">First Time Client</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="qa-is-rebooked" class="accent-gray-900 w-4 h-4 rounded" checked>
+                            <span class="text-sm font-medium text-gray-700">Rebooked Next Visit</span>
+                        </label>
+                    </div>
+
+                    <!-- Treatments / Revenue -->
+                    <div class="space-y-3 pt-4 border-t border-gray-200">
+                        <label class="block text-sm font-bold text-gray-900">Services Performed</label>
+                        
+                        <div id="qa-services-container" class="space-y-3">
+                            <!-- Dynamic Service Rows Injected Here -->
+                        </div>
+                        
+                        <button type="button" onclick="addQaServiceRow()" class="text-xs text-gray-600 font-medium hover:text-gray-900 flex items-center gap-1 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                            Add another service
+                        </button>
+                        
+                        <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
+                            <label class="block text-xs font-semibold text-gray-600 uppercase">Total Services ($)</label>
+                            <span id="qa-services-total-display" class="text-lg font-bold text-gray-900">$0.00</span>
+                            <input type="hidden" id="qa-services-amount" value="0">
+                        </div>
+
+                        <div class="pt-4 border-t border-gray-100">
+                            <label class="block text-xs font-semibold text-gray-600 mb-1 uppercase">Retail Products ($)</label>
+                            <input type="number" id="qa-retail-amount" min="0" step="0.01" value="0" class="w-full px-3 py-2 rounded-lg text-lg font-bold bg-gray-50 border border-gray-200 focus:border-gray-900">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="w-full bg-gray-900 text-white shadow-md py-3 rounded-xl font-medium mt-4 hover:bg-gray-800 transition-colors">Save Sale</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client Details Modal -->
+    <div id="modal-client" class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border border-gray-200 shadow-2xl rounded-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                <h3 class="font-bold text-lg text-gray-900" id="client-modal-title">Client Profile</h3>
+                <button onclick="closeModal('modal-client')" class="text-gray-400 hover:text-gray-900">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1">
+                <form id="form-client" onsubmit="submitClient(event)" class="space-y-6">
+                    <input type="hidden" id="client-id">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1 uppercase">Full Name</label>
+                            <input type="text" id="client-name" required class="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 focus:border-gray-900">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1 uppercase">Phone</label>
+                            <input type="tel" id="client-phone" class="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 focus:border-gray-900">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-semibold text-gray-600 mb-1 uppercase">Email</label>
+                            <input type="email" id="client-email" class="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 focus:border-gray-900">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-gray-900 mb-1 font-bold uppercase">Clinical Notes & Preferences</label>
+                        <textarea id="client-notes" rows="4" class="w-full px-3 py-2 rounded-lg resize-none bg-gray-50 border border-gray-200 focus:border-gray-900" placeholder="Allergies, preferred pressure, usual treatments..."></textarea>
+                    </div>
+
+                    <div id="client-history-section" class="hidden border-t border-gray-200 pt-4 mt-4">
+                        <h4 class="text-sm font-bold mb-3 text-gray-900">Recent Visits</h4>
+                        <div class="bg-gray-50 rounded-lg border border-gray-200 p-2 max-h-40 overflow-y-auto text-sm" id="client-history-list">
+                            <!-- Populated JS -->
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                        <button type="button" onclick="closeModal('modal-client')" class="px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 font-medium hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="px-4 py-2 rounded-lg bg-gray-900 shadow-md text-white font-medium hover:bg-gray-800">Save Profile</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Staff Details Modal -->
+    <div id="modal-staff" class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border border-gray-200 shadow-2xl rounded-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                <h3 class="font-bold text-lg text-gray-900" id="staff-modal-title">Staff Profile</h3>
+                <button onclick="closeModal('modal-staff')" class="text-gray-400 hover:text-gray-900">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1">
+                <form id="form-staff" onsubmit="submitStaff(event)" class="space-y-5">
+                    <input type="hidden" id="staff-id">
+                    
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1 uppercase">Full Name</label>
+                        <input type="text" id="staff-name" required class="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 focus:border-gray-900">
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1 uppercase">Email Address</label>
+                            <input type="email" id="staff-email" required class="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 focus:border-gray-900">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1 uppercase">Login PIN</label>
+                            <input type="text" id="staff-pin" required class="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 focus:border-gray-900">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1 uppercase">Hourly Salary ($)</label>
+                            <input type="number" id="staff-hourly" min="0" step="0.01" required class="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 focus:border-gray-900">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1 uppercase">Hours per Week</label>
+                            <input type="number" id="staff-hours" min="0" step="0.5" required class="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 focus:border-gray-900">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1 uppercase">Role</label>
+                        <select id="staff-role" class="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 focus:border-gray-900">
+                            <option value="Therapist">Therapist</option>
+                            <option value="Manager">Manager</option>
+                        </select>
+                    </div>
+                    
+                    <div class="flex justify-between items-center pt-4 border-t border-gray-200 mt-4">
+                        <button type="button" id="btn-delete-staff" onclick="deleteStaff()" class="text-sm text-red-600 hover:text-red-800 font-medium hidden">Delete Staff</button>
+                        <div class="flex gap-3 ml-auto">
+                            <button type="button" onclick="closeModal('modal-staff')" class="px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 font-medium hover:bg-gray-50">Cancel</button>
+                            <button type="submit" class="px-4 py-2 rounded-lg bg-gray-900 shadow-md text-white font-medium hover:bg-gray-800">Save Staff</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- JAVASCRIPT LOGIC -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, where, getDocs, doc, setDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+        // ----------------------------------------------------------------------
+        // 1. Firebase Imports & Initialization (Following strict Canvas Rules)
+        // ----------------------------------------------------------------------
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // =========================================================================
-        // 1. FIREBASE CONFIGURATION
-        // =========================================================================
+        // Your actual Firebase Configuration
         const firebaseConfig = {
-            apiKey: "AIzaSyDxu99Zx6rMKG1dooqOe_rTflzHICBp2f4",
-            authDomain: "test-trbtracker.firebaseapp.com",
-            projectId: "test-trbtracker",
-            storageBucket: "test-trbtracker.firebasestorage.app",
-            messagingSenderId: "547889352533",
-            appId: "1:547889352533:web:625549367ce6a5d6f169dc",
-            measurementId: "G-5K88VFHY6C"
+            apiKey: "AIzaSyAmh-KQgj2ZZEkBhxrKnt1LhAI1kUeQtPE",
+            authDomain: "trb-tracker.firebaseapp.com",
+            projectId: "trb-tracker",
+            storageBucket: "trb-tracker.firebasestorage.app",
+            messagingSenderId: "247021190025",
+            appId: "1:247021190025:web:fb3545aa3ef75841afff58"
         };
         
-        const configToUse = (typeof __firebase_config !== 'undefined') ? JSON.parse(__firebase_config) : firebaseConfig;
-        const appIdToUse = (typeof __app_id !== 'undefined') ? __app_id : 'totally-rad-beauty-live';
+        // Fixed app ID for your Firestore database paths
+        const appId = 'trb-tracker-production';
 
-        const app = initializeApp(configToUse);
+        const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // =========================================================================
-        // APP CONSTANTS & DEFAULTS
-        // =========================================================================
-        const APP_VERSION = "7.6.4";
-        
-        const DEFAULT_SERVICES = [
-            "3D Skin Analysis + Custom Facial", "Bacial", "Calming (High Frequency) Facial", "Consultation",
-            "Cosmetic Skin Growth Removal", "Cosmetic Skin Growth Removal Body", "Cosmelan", 
-            "Cryolipolysis (Fat Freezing)", "Dermaplaning", "Diode Laser Hair Removal", "EMSculpt", 
-            "Exosome Regeneration Therapy", "Fractional RF Microneedling", "HIFU", "HIFU Body", 
-            "Hand Rejuvenation", "Hydrodermabrasion and Microdermabrasion", "Laser Lipolysis", 
-            "Laser Skin Brightening", "Lash Lift", "LED Light Therapy", "Medi-Aesthetic Peel / Light Chemical Peel", 
-            "MesoWhite BB Glow", "Microneedling", "Oxygeneo", "Picosecond Laser Skin Revitalisation", 
-            "Radio Frequency (RF) Facial & Body", "SQT Bio-Microneedling", "Sonophoresis Vitamin Infusion", 
-            "Superjection", "Thermage CPT", "Thermage CPT Body", "Ultrasonic Fat Cavitation", "Vacuum Therapy", 
-            "12-Step Ultimate Facial"
-        ].sort();
-
-        const getMonthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const currentKey = getMonthKey(new Date());
-
-        const DEFAULT_USERS = [
-            { email: 'info@totallyradbeauty.com', role: 'admin', hourlyRate: 35, agreedHours: 40, name: 'Arianne', targetHistory: { [currentKey]: (35*40*4) } },
-            { email: 'Rizkiastagini@gmail.com', role: 'therapist', hourlyRate: 25, agreedHours: 40, name: 'Rizki', targetHistory: { [currentKey]: (25*40*4) } },
-            { email: 'ireneaat.ie@gmail.com', role: 'therapist', hourlyRate: 30, agreedHours: 35, name: 'Irene', targetHistory: { [currentKey]: (30*35*4) } },
-            { email: 'totallyradbeautyph@gmail.com', role: 'therapist', hourlyRate: 20, agreedHours: 30, name: 'Abie', targetHistory: { [currentKey]: (20*30*4) } }
-        ];
-
-        let appState = {
-            user: null, 
-            isDemo: false,
-            users: [...DEFAULT_USERS],
-            records: [],
-            clients: [
-                { id: 'c1', name: "Alice Smith", email: "alice@example.com", notes: [{id: 'n1', text: "Prefers morning appointments", date: "2023-10-01T09:00:00.000Z"}] },
-                { id: 'c2', name: "Bob Jones", email: "bob@example.com", notes: [] },
-                { id: 'c3', name: "Marc Dion", email: "mcmdion@yahoo.com", notes: [] }
-            ],
-            services: [...DEFAULT_SERVICES],
-            currentDate: new Date(),
-            pendingDeleteId: null,
-            clientDetailFilter: 'all'
+        // ----------------------------------------------------------------------
+        // 2. Global State & DOM Elements
+        // ----------------------------------------------------------------------
+        const STATE = {
+            firebaseUser: null, // The underlying Canvas auth user
+            appUser: null,      // The active Clinic Staff member (Manager/Therapist)
+            staff: [],
+            clients: [],
+            sales: [],
+            appointments: [],
+            services: [],
+            charts: {
+                goal: null,
+                breakdown: null,
+                team: null
+            },
+            unsubs: [] // Array of firestore unsubscribe functions
         };
 
-        const getColl = (name) => collection(db, 'artifacts', appIdToUse, 'public', 'data', name);
-        const formatClientLabel = (client) => client.email ? `${client.name} (${client.email})` : client.name;
-        const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
-        const getDocRef = (colName, docId) => doc(db, 'artifacts', appIdToUse, 'public', 'data', colName, docId);
+        // Navigation Config
+        const NAV_ITEMS = [
+            { id: 'me', label: 'Me', icon: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>' },
+            { id: 'history', label: 'History', icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>' },
+            { id: 'clients', label: 'Clients', icon: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>' },
+            { id: 'group', label: 'Group', icon: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line>' },
+            { id: 'setup', label: 'Setup', icon: '<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>' }
+        ];
 
-        // =========================================================================
-        // CORE LOGIC
-        // =========================================================================
-
-        const Logic = {
-            init: async () => {
-                // Listen for real Firebase Auth state changes
-                onAuthStateChanged(auth, (user) => {
+        // ----------------------------------------------------------------------
+        // 3. Auth & Initialization Flow
+        // ----------------------------------------------------------------------
+        
+        async function initApp() {
+            try {
+                // 1. Authenticate with custom external Firebase using Anonymous Auth
+                await signInAnonymously(auth);
+                
+                // 2. Setup Auth Listener
+                onAuthStateChanged(auth, async (user) => {
+                    STATE.firebaseUser = user;
                     if (user) {
-                        console.log("Logged in as:", user.email);
-                        appState.currentUserEmail = user.email;
-                        Logic.setupListeners();
+                        // 3. Load Base Data needed for login (Staff List)
+                        await loadStaffOnce();
                     } else {
-                        console.log("No user logged in.");
-                        appState.user = null;
-                        appState.currentUserEmail = null;
-                        UI.renderLogin();
+                        showLoginScreen();
                     }
                 });
-            },
+            } catch (err) {
+                console.error("Auth Init Error:", err);
+                showToast("Connection failed. Retrying...", "error");
+            }
+        }
 
-            setupListeners: () => {
-                const handleError = (err) => {
-                    console.error("DB Error:", err);
-                    if (err.code === 'permission-denied') {
-                        UI.showErrorModal("Access Denied", "Firebase Security Rules are blocking access. Please update rules to: 'allow read, write: if true;' in the Firebase Console.");
-                    }
-                };
-
-                // 1. Users (Config) Listener
-                onSnapshot(getColl('users'), (snapshot) => {
-                    const dbUsers = snapshot.docs.map(d => ({...d.data(), id: d.id}));
+        // Fetch staff initially to determine if we show "Setup" or "Login"
+        async function loadStaffOnce() {
+            const staffRef = collection(db, 'artifacts', appId, 'public', 'data', 'staff');
+            onSnapshot(staffRef, (snapshot) => {
+                STATE.staff = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                
+                // If we haven't logged into the app layer yet, handle the login UI
+                if (!STATE.appUser) {
+                    document.getElementById('loading-overlay').classList.add('hidden');
                     
-                    if (dbUsers.length > 0) {
-                        appState.users = dbUsers;
+                    if (STATE.staff.length === 0) {
+                        // First time setup
+                        document.getElementById('setup-notice').classList.remove('hidden');
+                        document.getElementById('login-name-field').classList.remove('hidden');
+                        document.getElementById('login-btn').innerText = "Create Master Account";
                     } else {
-                        // If DB is empty, seed defaults
-                        DEFAULT_USERS.forEach(u => addDoc(getColl('users'), u));
-                        appState.users = DEFAULT_USERS;
+                        // Normal login
+                        document.getElementById('setup-notice').classList.add('hidden');
+                        document.getElementById('login-name-field').classList.add('hidden');
+                        document.getElementById('login-btn').innerText = "Access Dashboard";
                     }
-
-                    // Match Auth Email to Config User
-                    if (appState.currentUserEmail) {
-                        const matchedUser = appState.users.find(u => u.email.toLowerCase() === appState.currentUserEmail.toLowerCase());
-                        if (matchedUser) {
-                            appState.user = matchedUser;
-                            // Ensure dashboard is rendered if coming from login
-                            if (!document.getElementById('main-content')) {
-                                UI.renderDashboard();
-                                UI.switchTab('dashboard');
-                            } else {
-                                UI.refreshCurrentView();
-                            }
-                        } else {
-                            // Auth successful, but user not in config
-                            appState.user = { 
-                                email: appState.currentUserEmail, 
-                                name: appState.currentUserEmail.split('@')[0], 
-                                role: 'therapist', 
-                                hourlyRate: 0, 
-                                agreedHours: 0,
-                                targetHistory: {}
-                            };
-                            if (!document.getElementById('main-content')) {
-                                UI.renderDashboard();
-                                UI.switchTab('dashboard');
-                            }
-                            UI.showToast("User config not found. Using default settings.", "warning");
-                        }
-                    }
-                }, handleError);
-
-                // 2. Services Listener
-                onSnapshot(getColl('services'), (snapshot) => {
-                    const data = snapshot.docs.map(d => ({...d.data(), id: d.id}));
-                    if (data.length > 0) appState.services = data.map(s => s.name).sort();
-                    else DEFAULT_SERVICES.forEach(s => addDoc(getColl('services'), {name: s}));
-                }, handleError);
-
-                // 3. Clients Listener
-                onSnapshot(getColl('clients'), (snapshot) => {
-                    appState.clients = snapshot.docs.map(d => ({...d.data(), id: d.id}));
-                    appState.clients.sort((a,b) => a.name.localeCompare(b.name));
-                    UI.updateClientDatalist();
-                    if(window.currentTab === 'clients') UI.renderClientsList();
-                }, handleError);
-
-                // 4. Records Listener
-                onSnapshot(getColl('records'), (snapshot) => {
-                    appState.records = snapshot.docs.map(d => ({...d.data(), id: d.id}));
-                    if(appState.user) UI.refreshCurrentView();
-                }, handleError);
-            },
-
-            login: async (email, password) => {
-                try {
-                    await signInWithEmailAndPassword(auth, email, password);
-                    return { success: true };
-                } catch (error) {
-                    console.error("Login Error", error);
-                    
-                    let msg = error.message;
-                    // Provide specific guidance for the "operation-not-allowed" error
-                    if (error.code === 'auth/operation-not-allowed') {
-                        msg = "Email/Password sign-in is disabled. Go to Firebase Console > Authentication > Sign-in method and enable 'Email/Password'.";
-                    } else if (error.code === 'auth/user-not-found') {
-                        msg = "No user found with this email.";
-                    } else if (error.code === 'auth/wrong-password') {
-                        msg = "Incorrect password.";
-                    }
-                    
-                    return { success: false, message: msg };
+                } else {
+                    // Update UI if staff changes while logged in
+                    if(STATE.appUser.role === 'Manager') renderSetupSection();
                 }
-            },
+            }, (error) => {
+                console.error("Firestore read error:", error);
+                showToast("Database access denied.", "error");
+            });
+        }
 
-            logout: () => {
-                signOut(auth).then(() => {
-                    UI.showToast("Logged out successfully.");
-                });
-            },
-            
-            switchUser: (email) => {
-                const user = appState.users.find(u => u.email === email);
-                if (user) {
-                    appState.user = user;
-                    UI.renderDashboard();
-                    UI.switchTab('dashboard');
-                    UI.showToast(`Switched to ${user.name}`);
-                }
-            },
+        // App-level Login Handler (Simulated secure login within the public environment)
+        window.handleLogin = async function(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value.trim();
+            const pin = document.getElementById('login-pin').value;
+            const isSetup = STATE.staff.length === 0;
 
-            changeMonth: (offset) => {
-                const newDate = new Date(appState.currentDate);
-                newDate.setMonth(newDate.getMonth() + offset);
-                appState.currentDate = newDate;
-                UI.refreshCurrentView();
-            },
+            document.getElementById('loading-overlay').classList.remove('hidden');
 
-            addRecord: async (clientInput, servicesList, productAmount, duration, entryType, isNew, isRebook, dateStr) => {
-                try {
-                    let clientName = clientInput.trim();
-                    let clientEmail = "";
-                    const match = clientInput.match(/^(.*) \((.*)\)$/);
-                    if (match) { clientName = match[1]; clientEmail = match[2]; }
-
-                    // Sync Client First (Wait for it)
-                    if (!appState.clients.some(c => c.name === clientName)) {
-                        await addDoc(getColl('clients'), { name: clientName, email: clientEmail, notes: [] });
-                    }
-                    
-                    let recordDate = dateStr ? new Date(dateStr.split('-')[0], dateStr.split('-')[1]-1, dateStr.split('-')[2]) : new Date();
-                    if (dateStr) { const now = new Date(); recordDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds()); }
-
-                    const totalServiceAmount = servicesList.reduce((sum, s) => sum + s.amount, 0);
-                    const serviceNames = servicesList.map(s => s.name).join(', ');
-
-                    const record = {
-                        therapistEmail: appState.user.email,
-                        clientName, clientEmail,
-                        service: entryType === 'product' ? 'Product Sale' : serviceNames,
-                        serviceDetails: servicesList, 
-                        serviceAmount: totalServiceAmount,
-                        productAmount: parseFloat(productAmount || 0),
-                        totalAmount: totalServiceAmount + parseFloat(productAmount || 0),
-                        duration: entryType === 'product' ? null : duration,
-                        entryType, isNew, isRebook,
-                        date: recordDate.toISOString()
+            try {
+                if (isSetup) {
+                    const name = document.getElementById('login-name').value.trim();
+                    // Create first manager
+                    const newStaff = {
+                        name: name,
+                        email: email,
+                        pin: pin, // In a real app, hash this!
+                        role: 'Manager',
+                        target: 5000,
+                        createdAt: new Date().toISOString()
                     };
-                    
-                    await addDoc(getColl('records'), record);
-                    
-                    UI.showToast("Record saved successfully.");
-                    UI.closeEntryModal();
-                } catch (e) {
-                    console.error(e);
-                    UI.showToast("Failed to save: " + e.message, "error");
-                }
-            },
-
-            updateRecord: async (id, updatedData) => {
-                try {
-                    if (typeof id === 'string' && id.length > 5) {
-                        await updateDoc(getDocRef('records', id), updatedData);
-                        
-                        // Check client
-                        if (updatedData.clientName && !appState.clients.some(c => c.name === updatedData.clientName)) {
-                            await addDoc(getColl('clients'), { name: updatedData.clientName, email: "", notes: [] });
-                        }
-                        
-                        UI.showToast("Record updated.");
-                        UI.closeEditModal();
+                    const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'staff'), newStaff);
+                    STATE.appUser = { id: docRef.id, ...newStaff };
+                } else {
+                    // Find user
+                    const user = STATE.staff.find(s => s.email.toLowerCase() === email.toLowerCase() && s.pin === pin);
+                    if (user) {
+                        STATE.appUser = user;
                     } else {
-                        UI.showToast("Cannot edit demo data.", "error");
+                        throw new Error("Invalid email or PIN.");
                     }
-                } catch (e) {
-                     console.error(e);
-                     UI.showToast("Update failed: " + e.message, "error");
                 }
-            },
-
-            deleteRecord: async (id) => {
-                try {
-                    if (typeof id === 'string' && id.length > 5) {
-                        await deleteDoc(getDocRef('records', id));
-                        UI.showToast("Record deleted.");
-                        UI.closeDeleteModal();
-                    } else {
-                        // Demo data
-                        appState.records = appState.records.filter(r => r.id !== id);
-                        UI.refreshCurrentView();
-                        UI.closeDeleteModal();
-                        UI.showToast("Demo record removed.");
-                    }
-                } catch (e) {
-                    console.error(e);
-                    UI.showToast("Delete failed: " + e.message, "error");
-                }
-            },
-
-            addClientNote: async (clientId, text) => {
-                try {
-                    const client = appState.clients.find(c => c.id === clientId);
-                    if (client && text.trim()) {
-                        const newNote = { id: generateId(), text: text.trim(), date: new Date().toISOString() };
-                        const updatedNotes = [...(client.notes || []), newNote];
-                        
-                        if (client.id && client.id.length > 10) { 
-                            await updateDoc(getDocRef('clients', clientId), { notes: updatedNotes });
-                             UI.showToast("Note added.");
-                        } else {
-                            client.notes = updatedNotes;
-                            UI.showToast("Note added (Demo).");
-                        }
-                        UI.openClientDetailsModal(clientId); 
-                    }
-                } catch (e) {
-                     console.error(e);
-                     UI.showToast("Failed to add note.", "error");
-                }
-            },
-
-            updateClient: async (id, name, email) => {
-                try {
-                    if (id && id.length > 10) {
-                         await updateDoc(getDocRef('clients', id), { name, email });
-                         UI.showToast("Client updated");
-                         UI.closeClientModal();
-                    } else {
-                         const c = appState.clients.find(x => x.id === id);
-                         if(c) { c.name = name; c.email = email; }
-                         UI.showToast("Client updated (Demo)");
-                         UI.closeClientModal();
-                         UI.renderClientsList();
-                    }
-                } catch (e) {
-                    console.error(e);
-                    UI.showToast("Update failed.", "error");
-                }
-            },
-
-            updateClientNote: async (clientId, noteId, text) => {
-                try {
-                    const client = appState.clients.find(c => c.id === clientId);
-                    if(client) {
-                        const updatedNotes = client.notes.map(n => n.id === noteId ? {...n, text} : n);
-                        if(client.id && client.id.length > 10) {
-                            await updateDoc(getDocRef('clients', clientId), { notes: updatedNotes });
-                        } else {
-                             client.notes = updatedNotes;
-                        }
-                        UI.showToast("Note updated");
-                        UI.closeNoteModal();
-                        UI.openClientDetailsModal(clientId);
-                    }
-                } catch (e) { console.error(e); UI.showToast("Failed to update note.", "error"); }
-            },
-
-            deleteClientNote: async (clientId, noteId) => {
-                try {
-                    const client = appState.clients.find(c => c.id === clientId);
-                    if(client && confirm("Delete note?")) {
-                        const updatedNotes = client.notes.filter(n => n.id !== noteId);
-                        if(client.id && client.id.length > 10) {
-                            await updateDoc(getDocRef('clients', clientId), { notes: updatedNotes });
-                        } else {
-                            client.notes = updatedNotes;
-                        }
-                        UI.openClientDetailsModal(clientId);
-                        UI.showToast("Note deleted");
-                    }
-                } catch (e) { console.error(e); UI.showToast("Failed to delete note.", "error"); }
-            },
-
-            // Configuration
-            addUser: async (email) => {
-                try {
-                    if (appState.users.find(u => u.email === email)) return UI.showToast("User exists", "error");
-                    await addDoc(getColl('users'), { email, role: 'therapist', hourlyRate: 0, agreedHours: 0, name: email.split('@')[0], targetHistory: {} });
-                    UI.showToast("User added");
-                } catch (e) { UI.showToast("Failed. Check permissions.", "error"); }
-            },
-
-            addService: async (serviceName) => {
-                try {
-                    if(appState.services.includes(serviceName)) return UI.showToast("Service exists", "error");
-                    await addDoc(getColl('services'), { name: serviceName });
-                    UI.showToast("Service added");
-                } catch (e) { UI.showToast("Failed. Check permissions.", "error"); }
-            },
-
-            deleteService: async (serviceName) => {
-                try {
-                    const q = query(getColl('services'), where("name", "==", serviceName));
-                    const snapshot = await getDocs(q);
-                    snapshot.forEach(d => deleteDoc(d.ref));
-                    UI.showToast("Service removed");
-                } catch (e) { UI.showToast("Failed. Check permissions.", "error"); }
-            },
-
-            importClients: async (text) => {
-                try {
-                    const lines = text.split('\n'); let count = 0; const emailRegex = /[\w._%+-]+@[\w.-]+\.[a-zA-Z]{2,}/;
-                    for (const line of lines) {
-                        let l = line.trim(); if (!l) continue;
-                        let name = "", email = "";
-                        const match = l.match(emailRegex);
-                        if (match) { email = match[0]; name = l.replace(email, '').replace(/[,;\t]/g, ' ').trim(); } 
-                        else { name = l.replace(/[,;\t]/g, ' ').trim(); }
-                        
-                        if (name && !appState.clients.some(c => c.name === name)) {
-                            await addDoc(getColl('clients'), { name, email, notes: [] });
-                            count++;
-                        }
-                    }
-                    UI.showToast(`Imported ${count} clients.`);
-                } catch (e) { UI.showToast("Import failed.", "error"); }
-            },
-
-            saveAllConfigs: async () => {
-                try {
-                    const currentMonthKey = getMonthKey(new Date());
-                    const rows = document.querySelectorAll('.config-row');
-                    for (const row of rows) {
-                        const email = row.dataset.email;
-                        const user = appState.users.find(u => u.email === email);
-                        if (user) {
-                            const name = row.querySelector('.input-name').value;
-                            const hourlyRate = parseFloat(row.querySelector('.input-rate').value);
-                            const agreedHours = parseFloat(row.querySelector('.input-hours').value);
-                            const targetHistory = user.targetHistory || {};
-                            targetHistory[currentMonthKey] = (hourlyRate * agreedHours) * 4;
-                            
-                            if(user.id && user.id.length > 10) {
-                                await updateDoc(getDocRef('users', user.id), {
-                                    name, hourlyRate, agreedHours, targetHistory
-                                });
-                            }
-                        }
-                    }
-                    UI.showToast("Configuration saved.");
-                } catch (e) { UI.showToast("Save failed. Check permissions.", "error"); }
-            },
-            
-            generateFakeData: () => {
-                 const now = new Date();
-                 const createRandomRecord = (therapistEmail, date) => {
-                    const typeRoll = Math.random();
-                    let entryType, service, sA, pA, duration, serviceDetails = [];
-                    const services = appState.services.length ? appState.services : ["Facial"];
-                    if (typeRoll < 0.4) { 
-                        entryType = 'service'; 
-                        const svcName = services[Math.floor(Math.random() * services.length)];
-                        sA = Math.floor(Math.random() * 120) + 60; pA = 0; duration = "1h";
-                        serviceDetails.push({name: svcName, amount: sA}); service = svcName;
-                    } else if (typeRoll < 0.8) { 
-                        entryType = 'service_product'; 
-                        const svcName = services[Math.floor(Math.random() * services.length)];
-                        sA = Math.floor(Math.random() * 120) + 60; pA = Math.floor(Math.random() * 80) + 20; duration = "1h 15m";
-                        serviceDetails.push({name: svcName, amount: sA}); service = svcName;
-                    } else { 
-                        entryType = 'product'; service = 'Product Sale'; sA = 0; pA = Math.floor(Math.random() * 150) + 30; duration = null; 
-                    }
-                    const hour = Math.floor(Math.random() * 9) + 9; const minute = Math.floor(Math.random() * 60); const finalDate = new Date(date); finalDate.setHours(hour, minute, 0, 0);
-                    return { therapistEmail, clientName: "Seeded Client", clientEmail: "seed@test.com", service, serviceDetails, serviceAmount: sA, productAmount: pA, totalAmount: sA + pA, duration, entryType, isNew: Math.random() > 0.6, isRebook: Math.random() > 0.6, date: finalDate.toISOString() };
-                };
                 
-                if (appState.user) {
-                    try {
-                        for(let i=0; i<5; i++) {
-                            const rec = createRandomRecord(appState.user.email, now);
-                            addDoc(getColl('records'), rec).catch(e=>{});
-                        }
-                        UI.showToast("Seeding 5 records...");
-                    } catch(e) {}
-                }
-            },
+                // Login Success
+                document.getElementById('login-overlay').classList.add('hidden');
+                document.getElementById('app-wrapper').classList.remove('hidden');
+                
+                initializeAuthenticatedSession();
 
-            getMetrics: (filterEmail = null, dateContext = new Date()) => {
-                const emailToUse = filterEmail || appState.user.email;
-                let filteredRecords = appState.records.filter(r => r.therapistEmail === emailToUse);
-                let currentUserConfig = appState.users.find(u => u.email === emailToUse) || appState.user;
-                const tm = dateContext.getMonth(); const ty = dateContext.getFullYear();
-                
-                filteredRecords = filteredRecords.filter(r => { const d = new Date(r.date); return d.getMonth() === tm && d.getFullYear() === ty; });
-                
-                const totalRevenue = filteredRecords.reduce((sum, r) => sum + r.totalAmount, 0);
-                const serviceRevenue = filteredRecords.reduce((sum, r) => sum + (r.serviceAmount || 0), 0);
-                const productRevenue = filteredRecords.reduce((sum, r) => sum + (r.productAmount || 0), 0);
-                
-                const monthKey = getMonthKey(dateContext);
-                let monthlyTarget = currentUserConfig.targetHistory && currentUserConfig.targetHistory[monthKey];
-                if (monthlyTarget === undefined) monthlyTarget = (currentUserConfig.hourlyRate * currentUserConfig.agreedHours) * 4;
-                
-                const totalClients = filteredRecords.length;
-                const rebookedClients = filteredRecords.filter(r => r.isRebook).length;
-                const newClientsCount = filteredRecords.filter(r => r.isNew).length;
-                return { totalRevenue, serviceRevenue, productRevenue, monthlyTarget, percentageToTarget: monthlyTarget > 0 ? (totalRevenue / monthlyTarget) * 100 : 0, rebookingRate: totalClients > 0 ? (rebookedClients/totalClients)*100 : 0, totalClients, rebookedClients, newClients: newClientsCount };
-            },
-
-            getGroupMetrics: (dateContext = new Date()) => {
-                const tm = dateContext.getMonth(); const ty = dateContext.getFullYear();
-                const monthKey = getMonthKey(dateContext);
-                const filteredRecords = appState.records.filter(r => { const d = new Date(r.date); return d.getMonth() === tm && d.getFullYear() === ty; });
-                
-                const totalRevenue = filteredRecords.reduce((sum, r) => sum + r.totalAmount, 0);
-                const serviceRevenue = filteredRecords.reduce((sum, r) => sum + (r.serviceAmount || 0), 0);
-                const productRevenue = filteredRecords.reduce((sum, r) => sum + (r.productAmount || 0), 0);
-                
-                const totalGroupTarget = appState.users.reduce((sum, u) => {
-                    let uTarget = u.targetHistory && u.targetHistory[monthKey];
-                    if (uTarget === undefined) uTarget = (u.hourlyRate * u.agreedHours) * 4;
-                    return sum + uTarget;
-                }, 0);
-
-                const individualStats = appState.users.map(user => {
-                    const userRecords = filteredRecords.filter(r => r.therapistEmail === user.email);
-                    const userTotalRev = userRecords.reduce((sum, r) => sum + r.totalAmount, 0);
-                    const userServiceRev = userRecords.reduce((sum, r) => sum + (r.serviceAmount || 0), 0);
-                    const userProductRev = userRecords.reduce((sum, r) => sum + (r.productAmount || 0), 0);
-                    let userTarget = user.targetHistory && user.targetHistory[monthKey];
-                    if (userTarget === undefined) userTarget = (user.hourlyRate * user.agreedHours) * 4;
-
-                    const uClients = userRecords.length;
-                    const uRebooked = userRecords.filter(r => r.isRebook).length;
-                    return {
-                        name: user.name, revenue: userTotalRev, serviceRevenue: userServiceRev, productRevenue: userProductRev,
-                        targetPct: userTarget > 0 ? (userTotalRev / userTarget) * 100 : 0,
-                        clients: uClients, rebooked: uRebooked, rebookRate: uClients > 0 ? (uRebooked / uClients) * 100 : 0
-                    };
-                });
-
-                // Calculate Service Tally
-                const serviceTally = {};
-                filteredRecords.forEach(r => {
-                    if (r.serviceDetails && Array.isArray(r.serviceDetails)) {
-                        r.serviceDetails.forEach(s => {
-                            serviceTally[s.name] = (serviceTally[s.name] || 0) + 1;
-                        });
-                    } else if (r.service && r.service !== 'Product Sale') {
-                        r.service.split(', ').forEach(sname => {
-                            serviceTally[sname] = (serviceTally[sname] || 0) + 1;
-                        });
-                    }
-                });
-                
-                return { totalRevenue, serviceRevenue, productRevenue, monthlyTarget: totalGroupTarget, percentageToTarget: totalGroupTarget > 0 ? (totalRevenue / totalGroupTarget) * 100 : 0, rebookingRate: filteredRecords.length > 0 ? (filteredRecords.filter(r => r.isRebook).length / filteredRecords.length) * 100 : 0, totalClients: filteredRecords.length, rebookedClients: filteredRecords.filter(r => r.isRebook).length, newClients: filteredRecords.filter(r => r.isNew).length, individualStats, serviceTally };
+            } catch (err) {
+                showToast(err.message, "error");
+                document.getElementById('loading-overlay').classList.add('hidden');
             }
         };
 
-        // =========================================================================
-        // UI HELPERS
-        // =========================================================================
-
-        const UI = {
-            init: () => { 
-                UI.updateClientDatalist();
-                UI.renderLogin();
-            },
+        window.logoutApp = function() {
+            STATE.appUser = null;
+            // Clear listeners
+            STATE.unsubs.forEach(unsub => unsub());
+            STATE.unsubs = [];
             
-            refreshCurrentView: () => {
-                if (window.currentTab === 'dashboard') { UI.refreshStats(); UI.renderTodayTable(); }
-                if (window.currentTab === 'history') UI.renderHistoryTable();
-                if (window.currentTab === 'group') UI.renderGroupStats();
-                if (window.currentTab === 'config') UI.renderConfigTable();
-                
-                const openModalId = document.getElementById('clientDetailsModal')?.dataset.clientId;
-                if(openModalId && !document.getElementById('clientDetailsModal').classList.contains('hidden')) {
-                    UI.openClientDetailsModal(openModalId);
-                }
-            },
+            document.getElementById('app-wrapper').classList.add('hidden');
+            document.getElementById('login-overlay').classList.remove('hidden');
+            document.getElementById('login-pin').value = '';
+        }
 
-            renderLogin: () => {
-                document.body.innerHTML = `<div class="min-h-screen bg-zinc-50 flex items-center justify-center p-4 font-inter"><div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 border border-zinc-100"><div class="text-center mb-8"><h1 class="text-2xl font-black text-brand-black tracking-tighter mb-2">Totally RAD Beauty</h1><p class="text-xs text-zinc-400 font-medium uppercase tracking-widest">Clinic Performance Portal</p></div><form id="loginForm" class="space-y-4"><div><label class="block text-[10px] font-bold text-zinc-400 uppercase mb-1">Email Address</label><input type="email" name="email" required class="w-full border border-zinc-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-brand-pink focus:border-brand-pink outline-none transition-all" placeholder="name@totallyradbeauty.com"></div><div><label class="block text-[10px] font-bold text-zinc-400 uppercase mb-1">Password</label><input type="password" name="password" required class="w-full border border-zinc-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-brand-pink focus:border-brand-pink outline-none transition-all" placeholder="••••••••"></div><button type="submit" class="w-full bg-brand-black text-white rounded-lg py-3.5 text-xs font-bold uppercase tracking-widest hover:bg-zinc-800 transition-transform active:scale-95 shadow-lg">Sign In</button></form><div class="mt-6 text-center"><p class="text-[10px] text-zinc-400">Restricted Access. Authorized Personnel Only.</p></div></div></div>`;
-                document.getElementById('loginForm').addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const result = await Logic.login(e.target.email.value, e.target.password.value);
-                    if (!result.success) UI.showToast(result.message, 'error');
-                });
-            },
+        // ----------------------------------------------------------------------
+        // 4. Data Subscriptions (Firestore -> State)
+        // ----------------------------------------------------------------------
+        function initializeAuthenticatedSession() {
+            if (!STATE.firebaseUser || !STATE.appUser) return;
 
-            addServiceRow: (containerId = 'serviceRows', preselectedValue = '', preselectedAmount = '') => {
-                const container = document.getElementById(containerId);
-                const div = document.createElement('div'); div.className = "service-row flex space-x-2 mb-2 items-center";
-                const options = appState.services.map(s => `<option value="${s}" ${s === preselectedValue ? 'selected' : ''}>${s}</option>`).join('');
-                div.innerHTML = `<select class="service-select flex-1 rounded border border-zinc-200 p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none shadow-sm bg-white">${options}</select><input type="number" class="service-amount w-20 rounded border border-zinc-200 p-2 text-xs shadow-sm focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none" step="0.01" placeholder="$" value="${preselectedAmount}"><button type="button" onclick="this.parentElement.remove()" class="text-zinc-400 hover:text-red-500"><i class="fas fa-times"></i></button>`;
-                container.appendChild(div);
-            },
-            toggleEntryFields: () => { const el = document.querySelector('input[name="entryType"]:checked'); if(!el)return; document.getElementById('serviceFields').classList.toggle('hidden', el.value === 'product'); document.getElementById('durationFields').classList.toggle('hidden', el.value === 'product'); document.getElementById('productFields').classList.toggle('hidden', el.value === 'service'); },
-            toggleEditEntryFields: () => { const el = document.querySelector('input[name="editEntryType"]:checked'); if(!el)return; document.getElementById('editServiceFields').classList.toggle('hidden', el.value === 'product'); document.getElementById('editDurationFields').classList.toggle('hidden', el.value === 'product'); document.getElementById('editProductFields').classList.toggle('hidden', el.value === 'service'); },
-            updateServiceDropdowns: () => {
-                const options = appState.services.map(s => `<option value="${s}">${s}</option>`).join('');
-                const entrySelect = document.querySelector('#dataEntryForm select[name="service"]');
-                if(entrySelect) entrySelect.innerHTML = options;
-                const editSelects = document.querySelectorAll('#editServiceRows .service-select');
-                editSelects.forEach(sel => { if(sel.innerHTML === "") sel.innerHTML = options; });
-            },
-            updateClientDatalist: () => {
-                const datalist = document.getElementById('clientOptions');
-                if (datalist) {
-                    datalist.innerHTML = appState.clients.map(c => `<option value="${formatClientLabel(c)}">`).join('');
-                }
-            },
-            checkClientStatus: (input) => { const val = input.value.trim().toLowerCase(); const form = input.closest('form'); const newCheckbox = form.querySelector('input[name="isNew"]'); if (!newCheckbox) return; const exists = appState.clients.some(c => c.name.toLowerCase() === val || formatClientLabel(c).toLowerCase() === val); if (exists) { newCheckbox.checked = false; newCheckbox.disabled = true; newCheckbox.parentElement.classList.add('opacity-50', 'cursor-not-allowed'); } else { newCheckbox.checked = false; newCheckbox.disabled = false; newCheckbox.parentElement.classList.remove('opacity-50', 'cursor-not-allowed'); } },
-            checkEditClientStatus: (input) => { const val = input.value.trim().toLowerCase(); const form = input.closest('form'); const newCheckbox = form.querySelector('input[name="editIsNew"]'); if (!newCheckbox) return; const exists = appState.clients.some(c => c.name.toLowerCase() === val || formatClientLabel(c).toLowerCase() === val); if (exists) { newCheckbox.disabled = true; newCheckbox.parentElement.classList.add('opacity-50', 'cursor-not-allowed'); } else { newCheckbox.disabled = false; newCheckbox.parentElement.classList.remove('opacity-50', 'cursor-not-allowed'); } },
-            calculateRowTarget: (input) => { const row = input.closest('tr'); const rate = parseFloat(row.querySelector('.input-rate').value)||0; const hours = parseFloat(row.querySelector('.input-hours').value)||0; row.querySelector('.target-cell').textContent = '$'+((rate*hours)*4).toLocaleString(); },
+            // Setup Navigation
+            buildNavigation();
+            updateUserProfileUI();
+
+            // Setup Realtime Listeners (No complex queries as per Canvas Rules)
+            const publicPath = `artifacts/${appId}/public/data`;
             
-            // --- Handlers ---
-            handleAddUser: () => { const input = document.getElementById('newUserEmail'); if (input && input.value) { Logic.addUser(input.value); input.value = ''; } },
-            handleAddService: () => { const input = document.getElementById('newServiceName'); if (input && input.value) { Logic.addService(input.value); input.value = ''; } },
-            handleDeleteService: (name) => { if(confirm(`Delete service: ${name}?`)) Logic.deleteService(name); },
-            handleImportClients: () => { const input = document.getElementById('bulkClientInput'); if(input && input.value) { Logic.importClients(input.value); input.value = ''; } },
-            handleClearClients: () => { if(confirm("Are you sure?")) Logic.clearClients(); },
-
-            // --- Modal Management (Entries) ---
-            openEntryModal: () => { UI.updateServiceDropdowns(); document.getElementById('entryModal').classList.remove('hidden'); document.querySelector('[name="entryDate"]').value = new Date().toISOString().split('T')[0]; UI.updateClientDatalist(); document.getElementById('serviceRows').innerHTML=''; UI.addServiceRow(); const cb=document.querySelector('#dataEntryForm input[name="isNew"]'); cb.checked=false; cb.disabled=false; cb.parentElement.classList.remove('opacity-50', 'cursor-not-allowed'); document.querySelector('input[name="clientName"]').value=""; },
-            closeEntryModal: () => { document.getElementById('entryModal').classList.add('hidden'); document.getElementById('dataEntryForm').reset(); UI.toggleEntryFields(); },
-            openEditModal: (id) => { 
-                const r = appState.records.find(rec => rec.id === id); if (!r) return;
-                const form = document.getElementById('editForm'); form.dataset.id = id;
-                form.querySelectorAll('input[name="editEntryType"]').forEach(radio => { if(radio.value === r.entryType) radio.checked = true; });
-                const editEntryType = r.entryType;
-                document.getElementById('editServiceFields').classList.toggle('hidden', editEntryType === 'product');
-                document.getElementById('editDurationFields').classList.toggle('hidden', editEntryType === 'product');
-                document.getElementById('editProductFields').classList.toggle('hidden', editEntryType === 'service');
-                form.editClientName.value = r.clientName || '';
-                UI.checkEditClientStatus(form.editClientName);
-                const editRowsContainer = document.getElementById('editServiceRows'); editRowsContainer.innerHTML = ''; 
-                if (r.entryType !== 'product') { 
-                    if (r.serviceDetails && r.serviceDetails.length > 0) { r.serviceDetails.forEach(s => UI.addServiceRow('editServiceRows', s.name, s.amount)); } 
-                    else if (r.service) { UI.addServiceRow('editServiceRows', r.service, r.serviceAmount); } 
-                    else { UI.addServiceRow('editServiceRows'); }
-                }
-                form.editProductAmount.value = r.productAmount || 0;
-                form.editDate.value = new Date(r.date).toISOString().split('T')[0];
-                if (r.duration) { const hMatch = r.duration.match(/(\d+)h/); const mMatch = r.duration.match(/(\d+)m/); form.editDurationHours.value = hMatch ? hMatch[1] : "0"; form.editDurationMinutes.value = mMatch ? mMatch[1] : "0"; } else { form.editDurationHours.value = "0"; form.editDurationMinutes.value = "0"; }
-                form.editIsNew.checked = r.isNew; form.editIsRebook.checked = r.isRebook;
-                document.getElementById('editModal').classList.remove('hidden');
-            },
-            closeEditModal: () => { document.getElementById('editModal').classList.add('hidden'); },
-            openDeleteModal: (id) => { appState.pendingDeleteId = id; document.getElementById('deleteModal').classList.remove('hidden'); },
-            closeDeleteModal: () => { appState.pendingDeleteId = null; document.getElementById('deleteModal').classList.add('hidden'); },
-            confirmDelete: () => { if(appState.pendingDeleteId) Logic.deleteRecord(appState.pendingDeleteId); },
-            showToast: (m, t = 'success') => { const toast = document.createElement('div'); toast.className = `fixed bottom-24 right-5 px-6 py-3 rounded-lg shadow-lg text-white z-[100] transform transition-all duration-300 translate-y-10 opacity-0 ${t === 'error' ? 'bg-red-500' : 'bg-brand-pink'}`; toast.textContent = m; document.body.appendChild(toast); setTimeout(() => toast.classList.remove('translate-y-10', 'opacity-0'), 10); setTimeout(() => { toast.classList.add('translate-y-10', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 3000); },
+            // 1. Clients
+            const u1 = onSnapshot(collection(db, publicPath, 'clients'), (snap) => {
+                STATE.clients = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                renderClientsList();
+            }, err => console.error(err));
             
-            showErrorModal: (title, message) => {
-                const modalHtml = `
-                    <div id="errorModal" class="fixed inset-0 bg-black bg-opacity-70 z-[120] flex items-center justify-center p-4">
-                        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 border-l-4 border-red-500 relative">
-                            <button onclick="document.getElementById('errorModal').remove()" class="absolute top-4 right-4 text-zinc-400 hover:text-red-500"><i class="fas fa-times"></i></button>
-                            <h3 class="text-lg font-black text-red-600 mb-2 uppercase tracking-wide"><i class="fas fa-exclamation-triangle mr-2"></i>${title}</h3>
-                            <div class="text-sm text-zinc-600 space-y-3 leading-relaxed">${message}</div>
-                            <div class="mt-6 text-right">
-                                <button onclick="document.getElementById('errorModal').remove()" class="bg-zinc-100 text-zinc-700 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-zinc-200">Dismiss</button>
+            // 2. Sales
+            const u2 = onSnapshot(collection(db, publicPath, 'sales'), (snap) => {
+                STATE.sales = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                renderDashboard();
+                renderHistory();
+                renderGroup();
+            }, err => console.error(err));
+
+            // 3. Appointments
+            const u3 = onSnapshot(collection(db, publicPath, 'appointments'), (snap) => {
+                STATE.appointments = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                renderDashboard();
+            }, err => console.error(err));
+
+            // 4. Services
+            const u4 = onSnapshot(collection(db, publicPath, 'services'), (snap) => {
+                STATE.services = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                if(STATE.appUser.role === 'Manager') renderSetupSection();
+            }, err => console.error(err));
+
+            STATE.unsubs.push(u1, u2, u3, u4);
+
+            // Set Initial Section
+            switchSection('me');
+            
+            showToast(`Welcome back, ${STATE.appUser.name.split(' ')[0]}!`);
+        }
+
+        // ----------------------------------------------------------------------
+        // 5. UI Layout & Navigation
+        // ----------------------------------------------------------------------
+        function buildNavigation() {
+            const nav = document.getElementById('bottom-nav');
+            nav.innerHTML = '';
+
+            NAV_ITEMS.forEach(item => {
+                // Hide setup for non-managers
+                if (item.id === 'setup' && STATE.appUser.role !== 'Manager') return;
+
+                const btn = document.createElement('button');
+                btn.className = `flex flex-col items-center p-2 min-w-[72px] rounded-xl transition-all nav-btn ${item.id === 'me' ? 'text-gray-900 font-bold bg-gray-100 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}`;
+                btn.onclick = () => switchSection(item.id);
+                btn.dataset.target = item.id;
+                btn.innerHTML = `<svg class="nav-icon w-6 h-6 mb-1" viewBox="0 0 24 24">${item.icon}</svg> <span class="text-[10px] md:text-xs">${item.label}</span>`;
+                nav.appendChild(btn);
+            });
+        }
+
+        function updateUserProfileUI() {
+            // Because we removed the sidebar, we safely check for these elements first
+            const nameEl = document.getElementById('user-name-display');
+            if (nameEl) nameEl.innerText = STATE.appUser.name;
+            const roleEl = document.getElementById('user-role-display');
+            if (roleEl) roleEl.innerText = STATE.appUser.role;
+            const avatarEl = document.getElementById('user-avatar');
+            if (avatarEl) avatarEl.innerText = STATE.appUser.name.charAt(0).toUpperCase();
+            
+            document.getElementById('dash-name').innerText = STATE.appUser.name.split(' ')[0];
+            
+            // Populate Quick Add Staff dropdown
+            const staffSelect = document.getElementById('qa-staff');
+            staffSelect.innerHTML = STATE.staff.map(s => 
+                `<option value="${s.id}" ${s.id === STATE.appUser.id ? 'selected' : ''}>${s.name}</option>`
+            ).join('');
+        }
+
+        window.switchSection = function(sectionId) {
+            // Update UI State
+            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(`section-${sectionId}`).classList.remove('hidden');
+            
+            // Update Nav Active States
+            document.querySelectorAll('.nav-btn').forEach(b => {
+                if(b.dataset.target === sectionId) b.className = 'flex flex-col items-center p-2 min-w-[72px] rounded-xl transition-all nav-btn text-gray-900 font-bold bg-gray-100 shadow-sm';
+                else b.className = 'flex flex-col items-center p-2 min-w-[72px] rounded-xl transition-all nav-btn text-gray-500 hover:bg-gray-50 hover:text-gray-900';
+            });
+
+            // Update Header Title
+            const item = NAV_ITEMS.find(i => i.id === sectionId);
+            const titleEl = document.getElementById('page-title');
+            if(titleEl) titleEl.innerText = item ? item.label : 'Dashboard';
+
+            // Trigger Specific Renderers
+            if(sectionId === 'me') renderDashboard();
+            if(sectionId === 'history') renderHistoryFilters();
+            if(sectionId === 'group') renderGroup();
+        }
+
+        // ----------------------------------------------------------------------
+        // 6. Section Renderers & Business Logic
+        // ----------------------------------------------------------------------
+
+        // Helper: Date formatting
+        const getMonthId = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+        const formatCurrency = (num) => '$' + Number(num).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+        // --- SECTION: ME (Dashboard) ---
+        function renderDashboard() {
+            if(!STATE.appUser) return;
+            const now = new Date();
+            const currentMonthId = getMonthId(now);
+            const todayStr = now.toISOString().split('T')[0];
+            
+            document.getElementById('current-month-label').innerText = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+            document.getElementById('today-date-badge').innerText = now.toLocaleDateString('default', { weekday: 'short', month: 'short', day: 'numeric' });
+
+            // Calculate Stats for Current User & Month
+            let totalRevenue = 0, totalServices = 0, totalRetail = 0;
+            let rebookCount = 0, totalSalesCount = 0;
+
+            const myMonthlySales = STATE.sales.filter(s => 
+                s.staffId === STATE.appUser.id && s.date.startsWith(currentMonthId)
+            );
+
+            myMonthlySales.forEach(sale => {
+                totalServices += Number(sale.servicesAmount || 0);
+                totalRetail += Number(sale.retailAmount || 0);
+                totalRevenue += (Number(sale.servicesAmount || 0) + Number(sale.retailAmount || 0));
+                totalSalesCount++;
+                if(sale.isRebooked) rebookCount++;
+            });
+
+            document.getElementById('stat-revenue').innerText = formatCurrency(totalRevenue);
+            document.getElementById('stat-services').innerText = formatCurrency(totalServices);
+            document.getElementById('stat-retail').innerText = formatCurrency(totalRetail);
+            
+            const rebookRate = totalSalesCount > 0 ? Math.round((rebookCount / totalSalesCount) * 100) : 0;
+            document.getElementById('stat-rebook').innerText = `${rebookRate}%`;
+
+            // Render Charts
+            renderMyCharts(totalRevenue, totalServices, totalRetail);
+
+            // Render Today's Appointments
+            const myTodayAppts = STATE.appointments.filter(a => a.date === todayStr && a.staffId === STATE.appUser.id);
+            // Sort by time
+            myTodayAppts.sort((a, b) => a.time.localeCompare(b.time));
+            
+            const apptList = document.getElementById('appointments-list');
+            if (myTodayAppts.length === 0) {
+                apptList.innerHTML = `<p class="text-sm text-gray-400 text-center py-4">No appointments scheduled for today.</p>`;
+            } else {
+                apptList.innerHTML = myTodayAppts.map(appt => `
+                    <div class="bg-white border border-gray-200 shadow-sm p-3 rounded-xl flex items-center justify-between group">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-gray-100 text-gray-700 font-medium px-2 py-1 rounded text-xs whitespace-nowrap">${appt.time}</div>
+                            <div>
+                                <p class="font-medium text-sm text-gray-900">${appt.clientName}</p>
+                                <p class="text-xs text-gray-500 truncate w-32 md:w-48">${appt.service || 'Appointment'}</p>
                             </div>
                         </div>
+                        <button onclick="deleteAppointment('${appt.id}')" class="text-gray-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100 p-1">&times;</button>
                     </div>
-                `;
-                const existing = document.getElementById('errorModal');
-                if (existing) existing.remove();
-                document.body.insertAdjacentHTML('beforeend', modalHtml);
-            },
+                `).join('');
+            }
+        }
 
-            // --- Client Detail Modal ---
-            toggleClientFilter: (filter) => { appState.clientDetailFilter = filter; const activeId = document.getElementById('clientDetailsModal').dataset.clientId; if(activeId) UI.openClientDetailsModal(activeId); },
-            openClientDetailsModal: (clientId) => { 
-                const client = appState.clients.find(c => c.id === clientId); if (!client) return; 
-                const modal = document.getElementById('clientDetailsModal'); 
-                modal.dataset.clientId = clientId; 
-                document.getElementById('cd-name').textContent = client.name; 
-                document.getElementById('cd-email').textContent = client.email || 'No email'; 
-                
-                const clientRecords = appState.records.filter(r => r.clientName === client.name); 
-                const history = []; 
-                if(client.notes) client.notes.forEach(n => history.push({ type: 'note', date: new Date(n.date), data: n })); 
-                if(clientRecords) clientRecords.forEach(r => history.push({ type: 'service', date: new Date(r.date), data: r })); 
-                history.sort((a, b) => b.date - a.date); 
-                
-                const listContainer = document.getElementById('cd-notes-list'); 
-                const filter = appState.clientDetailFilter; 
-                
-                ['all','services','notes'].forEach(f => { 
-                    const btn = document.getElementById(`filter-btn-${f}`); 
-                    if(f === filter) { 
-                        btn.classList.add('bg-brand-black', 'text-white'); 
-                        btn.classList.remove('bg-zinc-100', 'text-zinc-500'); 
-                    } else { 
-                        btn.classList.remove('bg-brand-black', 'text-white'); 
-                        btn.classList.add('bg-zinc-100', 'text-zinc-500'); 
-                    } 
-                }); 
-                
-                const filteredHistory = history.filter(h => { 
-                    if (filter === 'all') return true; 
-                    return h.type === (filter === 'services' ? 'service' : 'note'); 
-                }); 
-                
-                if (filteredHistory.length === 0) { 
-                    listContainer.innerHTML = '<p class="text-xs text-zinc-400 italic text-center py-4">No history found.</p>'; 
-                } else { 
-                    listContainer.innerHTML = filteredHistory.map(item => { 
-                        const dateStr = item.date.toLocaleString([], {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}); 
-                        if (item.type === 'note') { 
-                            return `<div class="bg-brand-lightpink p-3 rounded-lg border border-pink-200 group relative"><div class="flex justify-between items-start mb-1"><p class="text-[9px] font-bold text-brand-darkpink uppercase tracking-wider"><i class="fas fa-sticky-note mr-1"></i> ${dateStr}</p><div class="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onclick="UI.openNoteModal('${client.id}', '${item.data.id}')" class="text-zinc-400 hover:text-brand-pink"><i class="fas fa-pencil-alt text-[10px]"></i></button><button onclick="Logic.deleteClientNote('${client.id}', '${item.data.id}')" class="text-zinc-400 hover:text-red-500"><i class="fas fa-trash text-[10px]"></i></button></div></div><p class="text-xs text-zinc-800 leading-relaxed whitespace-pre-wrap break-words">${item.data.text}</p></div>`; 
-                        } else { 
-                            return `<div class="bg-zinc-50 p-3 rounded-lg border border-zinc-100"><div class="flex justify-between items-start mb-1"><p class="text-[9px] font-bold text-zinc-400 uppercase tracking-wider"><i class="fas fa-magic mr-1"></i> ${dateStr}</p><p class="text-[10px] font-black text-brand-black">$${item.data.totalAmount}</p></div><p class="text-xs text-zinc-800 font-bold whitespace-normal">${item.data.service}</p><p class="text-[10px] text-zinc-500">Therapist: ${item.data.therapistEmail.split('@')[0]}</p></div>`; 
-                        } 
-                    }).join(''); 
-                } 
-                
-                document.getElementById('cd-add-note-btn').onclick = () => { 
-                    const txt = document.getElementById('new-note-input').value; 
-                    if(txt) { Logic.addClientNote(clientId, txt); document.getElementById('new-note-input').value = ''; } 
-                }; 
-                document.getElementById('cd-edit-btn').onclick = () => { 
-                    UI.closeClientDetailsModal(); 
-                    UI.openClientModal(clientId); 
-                }; 
-                modal.classList.remove('hidden'); 
-            },
-            closeClientDetailsModal: () => { document.getElementById('clientDetailsModal').classList.add('hidden'); },
-            openClientModal: (clientId) => { const client = appState.clients.find(c => c.id === clientId); if(client) { document.getElementById('clientEditId').value = client.id; document.getElementById('clientEditName').value = client.name; document.getElementById('clientEditEmail').value = client.email || ''; document.getElementById('clientModal').classList.remove('hidden'); } },
-            closeClientModal: () => { document.getElementById('clientModal').classList.add('hidden'); },
-            openNoteModal: (clientId, noteId) => { const client = appState.clients.find(c => c.id === clientId); if(client) { const note = client.notes.find(n => n.id === noteId); if(note) { document.getElementById('noteEditClientId').value = clientId; document.getElementById('noteEditId').value = noteId; document.getElementById('noteEditText').value = note.text; document.getElementById('noteModal').classList.remove('hidden'); } } },
-            closeNoteModal: () => { document.getElementById('noteModal').classList.add('hidden'); },
+        function renderMyCharts(totalRev, servicesRev, retailRev) {
+            Chart.defaults.color = '#6b7280';
+            Chart.defaults.font.family = 'Inter';
 
-            // --- Renderers ---
-            renderDashboard: () => {
-                const isAdmin = appState.user.role === 'admin';
-                const minuteOpts = Array.from({length: 12}, (_, i) => i * 5).map(m => `<option value="${m}">${m}m</option>`).join('');
-                document.body.innerHTML = `
-                    <div class="min-h-screen bg-zinc-50 flex flex-col font-inter">
-                        <!-- MODALS -->
-                        <div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 z-[100] hidden flex items-center justify-center p-4">
-                            <div class="bg-white rounded-xl shadow-2xl w-full max-w-xs p-6 text-center">
-                                <h3 class="text-lg font-bold mb-4 text-brand-black uppercase tracking-widest">Delete Record?</h3>
-                                <div class="flex space-x-3">
-                                    <button onclick="UI.closeDeleteModal()" class="flex-1 py-2.5 bg-zinc-100 rounded-lg text-[10px] font-black uppercase tracking-wider text-zinc-600 hover:bg-zinc-200">Cancel</button>
-                                    <button onclick="UI.confirmDelete()" class="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm hover:bg-red-700">Delete</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 2. Client Details Modal -->
-                        <div id="clientDetailsModal" class="fixed inset-0 bg-black bg-opacity-50 z-[105] hidden flex items-center justify-center p-4">
-                            <div class="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[85vh]">
-                                <div class="p-5 border-b border-zinc-100 bg-zinc-50 rounded-t-xl"><div class="flex justify-between items-start"><div><h3 id="cd-name" class="text-lg font-black text-brand-black leading-tight"></h3><p id="cd-email" class="text-xs text-zinc-500 font-medium"></p></div><div class="flex space-x-2"><button id="cd-edit-btn" class="text-zinc-400 hover:text-brand-pink p-1"><i class="fas fa-pencil-alt"></i></button><button onclick="UI.closeClientDetailsModal()" class="text-zinc-400 hover:text-zinc-600 p-1"><i class="fas fa-times"></i></button></div></div><div class="flex space-x-2 mt-4"><button onclick="UI.toggleClientFilter('all')" id="filter-btn-all" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full bg-brand-black text-white">All</button><button onclick="UI.toggleClientFilter('services')" id="filter-btn-services" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full bg-zinc-100 text-zinc-500">Services</button><button onclick="UI.toggleClientFilter('notes')" id="filter-btn-notes" class="px-3 py-1 text-[10px] font-bold uppercase rounded-full bg-zinc-100 text-zinc-500">Notes</button></div></div>
-                                <div class="flex-1 overflow-y-auto p-5 space-y-3" id="cd-notes-list"></div><div class="p-4 border-t border-zinc-100 bg-white rounded-b-xl"><div class="flex items-center space-x-2"><textarea id="new-note-input" placeholder="Type a new note..." class="flex-1 border border-zinc-200 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none resize-none" rows="1" style="min-height: 38px;"></textarea><button id="cd-add-note-btn" class="bg-brand-black text-white w-8 h-8 rounded-lg flex items-center justify-center hover:bg-zinc-800 transition-colors self-end"><i class="fas fa-paper-plane text-xs"></i></button></div></div>
-                            </div>
-                        </div>
-
-                        <!-- 3. Edit Client Details Modal -->
-                        <div id="clientModal" class="fixed inset-0 bg-black bg-opacity-50 z-[110] hidden flex items-center justify-center p-4">
-                            <div class="bg-white rounded-xl shadow-2xl w-full max-w-xs p-6"><h3 class="text-sm font-black text-brand-black uppercase tracking-widest mb-4">Edit Client</h3><form id="clientEditForm" class="space-y-3"><input type="hidden" id="clientEditId"><div><label class="text-[9px] font-bold text-zinc-400 uppercase">Name</label><input type="text" id="clientEditName" required class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none"></div><div><label class="text-[9px] font-bold text-zinc-400 uppercase">Email</label><input type="email" id="clientEditEmail" class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none"></div><div class="flex space-x-2 pt-2"><button type="button" onclick="UI.closeClientModal()" class="flex-1 py-2 bg-zinc-100 text-zinc-600 rounded text-xs font-bold hover:bg-zinc-200">Cancel</button><button type="submit" class="flex-1 py-2 bg-brand-black text-white rounded text-xs font-bold hover:bg-zinc-800">Save</button></div></form></div>
-                        </div>
-
-                        <!-- 4. Edit Note Modal -->
-                        <div id="noteModal" class="fixed inset-0 bg-black bg-opacity-50 z-[110] hidden flex items-center justify-center p-4">
-                            <div class="bg-white rounded-xl shadow-2xl w-full max-w-xs p-6"><h3 class="text-sm font-black text-brand-black uppercase tracking-widest mb-4">Edit Note</h3><form id="noteEditForm" class="space-y-3"><input type="hidden" id="noteEditClientId"><input type="hidden" id="noteEditId"><textarea id="noteEditText" rows="6" class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none"></textarea><div class="flex space-x-2 pt-2"><button type="button" onclick="UI.closeNoteModal()" class="flex-1 py-2 bg-zinc-100 text-zinc-600 rounded text-xs font-bold hover:bg-zinc-200">Cancel</button><button type="submit" class="flex-1 py-2 bg-brand-black text-white rounded text-xs font-bold hover:bg-zinc-800">Save</button></div></form></div>
-                        </div>
-
-                        <!-- 5. New Entry Modal -->
-                        <div id="entryModal" class="fixed inset-0 bg-black bg-opacity-50 z-[90] hidden flex items-center justify-center p-4">
-                            <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-y-auto max-h-[90vh]">
-                                <div class="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50"><h3 class="text-sm font-bold text-brand-black uppercase tracking-wider">New Entry</h3><button onclick="UI.closeEntryModal()" class="text-zinc-400 hover:text-black transition-colors"><i class="fas fa-times"></i></button></div>
-                                <form id="dataEntryForm" class="p-6 space-y-4">
-                                    <div class="flex justify-around border-b border-zinc-100 pb-4"><label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="service" checked onchange="UI.toggleEntryFields()" class="accent-brand-pink"><span class="text-[10px] font-bold mt-1 uppercase text-zinc-500">Service Only</span></label><label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="service_product" onchange="UI.toggleEntryFields()" class="accent-brand-pink"><span class="text-[10px] font-bold mt-1 uppercase text-zinc-500">Svc+Prod</span></label><label class="flex flex-col items-center cursor-pointer"><input type="radio" name="entryType" value="product" onchange="UI.toggleEntryFields()" class="accent-brand-pink"><span class="text-[10px] font-bold mt-1 uppercase text-zinc-500">Product Only</span></label></div>
-                                    <div class="grid grid-cols-2 gap-3"><div><label class="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Date</label><input type="date" name="entryDate" required class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none shadow-sm"></div><div><label class="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Client</label><input type="text" name="clientName" list="clientOptions" required class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none shadow-sm" placeholder="Search or Enter" oninput="UI.checkClientStatus(this)"><datalist id="clientOptions"></datalist></div></div>
-                                    <div id="serviceFields" class="space-y-2"><label class="text-[10px] font-black uppercase text-zinc-400">Services</label><div id="serviceRows" class="space-y-2"></div><button type="button" onclick="UI.addServiceRow()" class="text-[10px] font-bold text-brand-pink hover:underline">+ Add Another Service</button></div>
-                                    <div id="productFields" class="hidden"><label class="text-[10px] font-black uppercase text-zinc-400">Product Amount ($)</label><input type="number" name="productAmount" step="0.01" class="w-full rounded border border-zinc-200 rounded p-2 text-xs bg-brand-lightpink/20 shadow-sm focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none" placeholder="Product Amount $"></div>
-                                    <div id="durationFields"><label class="text-[10px] font-black uppercase text-zinc-400">Duration</label><div class="flex space-x-2"><select name="durationHours" class="w-1/2 rounded border border-zinc-200 p-2 text-xs shadow-sm focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none"><option value="0">0h</option><option value="1" selected>1h</option><option value="2">2h</option><option value="3">3h</option><option value="4">4h</option></select><select name="durationMinutes" class="w-1/2 rounded border border-zinc-200 p-2 text-xs shadow-sm focus:ring-1 focus:ring-brand-pink focus:border-brand-pink outline-none">${minuteOpts}</select></div></div>
-                                    <div class="flex space-x-4 pt-2"><label class="flex items-center cursor-pointer"><input type="checkbox" name="isNew" class="accent-brand-pink"> <span class="ml-2 text-xs font-medium text-zinc-600">New Client</span></label><label class="flex items-center cursor-pointer"><input type="checkbox" name="isRebook" class="accent-brand-pink"> <span class="ml-2 text-xs font-medium text-zinc-600">Rebooked</span></label></div>
-                                    <button type="submit" class="w-full py-3 bg-brand-black text-white rounded text-xs font-black uppercase tracking-widest hover:bg-zinc-800 transition-colors shadow-lg active:scale-[0.98]">Confirm Entry</button>
-                                </form>
-                            </div>
-                        </div>
-
-                        <!-- 6. Edit Record Modal -->
-                        <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 z-[90] hidden flex items-center justify-center p-4">
-                            <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-                                <h3 class="text-xs font-black uppercase tracking-widest mb-4 text-zinc-400">Edit Record</h3>
-                                <form id="editForm" class="p-6 space-y-4">
-                                    <div class="flex justify-around border-b border-zinc-100 pb-4"><label class="flex flex-col items-center cursor-pointer"><input type="radio" name="editEntryType" value="service" onchange="UI.toggleEditEntryFields()" class="accent-brand-pink"><span class="text-[10px] font-bold mt-1 uppercase text-zinc-500">Service Only</span></label><label class="flex flex-col items-center cursor-pointer"><input type="radio" name="editEntryType" value="service_product" onchange="UI.toggleEditEntryFields()" class="accent-brand-pink"><span class="text-[10px] font-bold mt-1 uppercase text-zinc-500">Svc+Prod</span></label><label class="flex flex-col items-center cursor-pointer"><input type="radio" name="editEntryType" value="product" onchange="UI.toggleEditEntryFields()" class="accent-brand-pink"><span class="text-[10px] font-bold mt-1 uppercase text-zinc-500">Product Only</span></label></div>
-                                    <div class="grid grid-cols-2 gap-3"><div><label class="text-[10px] font-bold uppercase text-zinc-400">Date</label><input type="date" name="editDate" required class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink outline-none"></div><div><label class="text-[10px] font-bold uppercase text-zinc-400">Client</label><input type="text" name="editClientName" required class="w-full border border-zinc-200 rounded p-2 text-xs focus:ring-1 focus:ring-brand-pink outline-none" placeholder="Client Name" oninput="UI.checkEditClientStatus(this)"></div></div>
-                                    <div id="editServiceFields" class="space-y-4"><label class="text-[10px] font-bold uppercase text-zinc-400">Services</label><div id="editServiceRows" class="space-y-2"></div><button type="button" onclick="UI.addServiceRow('editServiceRows')" class="text-[10px] font-bold text-brand-pink hover:underline">+ Add Another Service</button></div>
-                                    <div id="editProductFields" class="hidden"><label class="text-[10px] font-bold uppercase text-zinc-400">Product Amount ($)</label><input type="number" name="editProductAmount" step="0.01" class="w-full border border-zinc-200 rounded p-2 text-xs bg-brand-lightpink/20 focus:ring-1 focus:ring-brand-pink outline-none"></div>
-                                    <div id="editDurationFields"><label class="text-[10px] font-bold uppercase text-zinc-400">Duration</label><div class="flex space-x-2"><select name="editDurationHours" class="w-1/2 rounded border border-zinc-200 p-2 text-xs focus:ring-1 focus:ring-brand-pink outline-none"><option value="0">0h</option><option value="1">1h</option><option value="2">2h</option><option value="3">3h</option><option value="4">4h</option></select><select name="editDurationMinutes" class="w-1/2 rounded border border-zinc-200 p-2 text-xs focus:ring-1 focus:ring-brand-pink outline-none">${minuteOpts}</select></div></div>
-                                    <div class="flex space-x-4 pt-2"><label class="flex items-center cursor-pointer"><input type="checkbox" name="editIsNew" class="accent-brand-pink"> <span class="ml-2 text-xs font-medium text-zinc-600">New Client</span></label><label class="flex items-center cursor-pointer"><input type="checkbox" name="editIsRebook" class="accent-brand-pink"> <span class="ml-2 text-xs font-medium text-zinc-600">Rebooked</span></label></div>
-                                    <div class="flex space-x-2 pt-2"><button type="button" onclick="UI.closeEditModal()" class="flex-1 py-2 bg-zinc-100 rounded text-[10px] font-black uppercase tracking-wider text-zinc-600 hover:bg-zinc-200">Cancel</button><button type="submit" class="flex-1 py-2 bg-brand-black text-white rounded text-[10px] font-black uppercase tracking-wider hover:bg-zinc-800">Update</button></div>
-                                </form>
-                            </div>
-                        </div>
-
-                        <!-- HEADER -->
-                        <header class="bg-white shadow-sm sticky top-0 z-40 p-3 flex justify-between items-center border-b border-zinc-100">
-                            <div class="flex flex-col"><h1 class="text-xl font-black tracking-tighter leading-none text-brand-black uppercase">Totally RAD Beauty</h1><span class="text-[8px] font-black text-zinc-300 uppercase tracking-widest mt-1">v${APP_VERSION}</span></div>
-                            <div class="flex space-x-2 items-center"><button onclick="Logic.logout()" class="text-zinc-400 hover:text-red-500 mr-2" title="Sign Out"><i class="fas fa-sign-out-alt"></i></button><button onclick="Logic.generateFakeData()" class="bg-zinc-50 text-[9px] font-black uppercase border border-zinc-200 rounded px-2.5 py-2 hover:bg-zinc-100 text-zinc-600 transition-colors shadow-sm">Seed Data</button><select onchange="Logic.switchUser(this.value)" class="bg-zinc-50 text-[9px] font-black uppercase border border-zinc-200 rounded px-2 py-1.5 focus:ring-0 shadow-sm text-zinc-600 outline-none">${appState.users.map(u => `<option value="${u.email}" ${appState.user.email === u.email ? 'selected' : ''}>${u.name}</option>`).join('')}</select><button onclick="UI.openEntryModal()" class="bg-brand-pink text-white px-3 py-2 rounded-lg shadow-md text-[9px] font-black uppercase tracking-wider hover:bg-brand-darkpink transition-all active:scale-95 flex items-center"><i class="fas fa-plus mr-1"></i> New Entry</button></div>
-                        </header>
-                        <main class="flex-1 overflow-y-auto pb-24 p-4" id="main-content"></main>
-                        <nav class="fixed bottom-0 left-0 right-0 bg-brand-black shadow-[0_-8px_20px_rgba(0,0,0,0.2)] z-50 flex justify-around items-center px-2 pt-3 pb-5">
-                            <button onclick="UI.switchTab('dashboard')" id="nav-dashboard" class="flex flex-col items-center justify-center w-1/5 transition-all py-1 active:scale-90 text-brand-pink"><i class="fas fa-chart-line text-xl mb-1.5"></i><span class="text-[9px] font-black uppercase tracking-widest">Me</span></button>
-                            <button onclick="UI.switchTab('history')" id="nav-history" class="flex flex-col items-center justify-center w-1/5 transition-all py-1 active:scale-90 text-zinc-500"><i class="fas fa-history text-xl mb-1.5"></i><span class="text-[9px] font-black uppercase tracking-widest">History</span></button>
-                            <button onclick="UI.switchTab('clients')" id="nav-clients" class="flex flex-col items-center justify-center w-1/5 transition-all py-1 active:scale-90 text-zinc-500"><i class="fas fa-address-book text-xl mb-1.5"></i><span class="text-[9px] font-black uppercase tracking-widest">Clients</span></button>
-                            <button onclick="UI.switchTab('group')" id="nav-group" class="flex flex-col items-center justify-center w-1/5 transition-all py-1 active:scale-90 text-zinc-500"><i class="fas fa-people-group text-xl mb-1.5"></i><span class="text-[9px] font-black uppercase tracking-widest">Group</span></button>
-                            ${isAdmin ? `<button onclick="UI.switchTab('config')" id="nav-config" class="flex flex-col items-center justify-center w-1/5 transition-all py-1 active:scale-90 text-zinc-500"><i class="fas fa-sliders text-xl mb-1.5"></i><span class="text-[9px] font-black uppercase tracking-widest">Setup</span></button>` : ''}
-                        </nav>
-                    </div>
-                `;
-                
-                // Event Listeners
-                document.getElementById('dataEntryForm').addEventListener('submit', (e) => {
-                    e.preventDefault(); const fd = new FormData(e.target);
-                    const entryType = fd.get('entryType');
-                    
-                    let servicesList = [];
-                    let totalServiceAmt = 0;
-                    if (entryType !== 'product') {
-                        const rows = document.querySelectorAll('#serviceRows .service-row');
-                        if (rows.length === 0) { UI.showToast("Please add at least one service.", "error"); return; }
-                        rows.forEach(row => {
-                            const name = row.querySelector('.service-select').value;
-                            const amt = parseFloat(row.querySelector('.service-amount').value) || 0;
-                            servicesList.push({name, amount: amt});
-                            totalServiceAmt += amt;
-                        });
-                    }
-
-                    const pa = parseFloat(fd.get('productAmount')||0);
-                    const h = parseInt(fd.get('durationHours')||0);
-                    const m = parseInt(fd.get('durationMinutes')||0);
-                    
-                    if (entryType !== 'product') {
-                        if (h === 0 && m === 0) { UI.showToast("Please select a valid duration.", "error"); return; }
-                        if (totalServiceAmt === 0 && entryType === 'service') { UI.showToast("Service amount cannot be 0.", "error"); return; }
-                        if (totalServiceAmt + pa === 0 && entryType === 'service_product') { UI.showToast("Total amount cannot be 0.", "error"); return; }
-                    } else {
-                        if (pa === 0) { UI.showToast("Product amount cannot be 0.", "error"); return; }
-                    }
-
-                    let d = ""; if(h>0)d+=`${h}h `; if(m>0)d+=`${m}m`; if(d==="")d="0m";
-                    
-                    Logic.addRecord(fd.get('clientName'), servicesList, pa, d.trim(), entryType, fd.get('isNew')==='on', fd.get('isRebook')==='on', fd.get('entryDate'));
-                });
-                
-                document.getElementById('editForm').addEventListener('submit', (e) => { 
-                    e.preventDefault(); 
-                    const fd = new FormData(e.target); 
-                    const id = parseInt(e.target.dataset.id); 
-                    const entryType = fd.get('editEntryType');
-
-                    let servicesList = [];
-                    let totalServiceAmt = 0;
-                    if (entryType !== 'product') {
-                        const rows = document.querySelectorAll('#editServiceRows .service-row');
-                        if (rows.length === 0) { UI.showToast("Please add at least one service.", "error"); return; }
-                        rows.forEach(row => {
-                            const name = row.querySelector('.service-select').value;
-                            const amt = parseFloat(row.querySelector('.service-amount').value) || 0;
-                            servicesList.push({name, amount: amt});
-                            totalServiceAmt += amt;
-                        });
-                    }
-
-                    const pa = parseFloat(fd.get('editProductAmount')||0);
-                    const h = parseInt(fd.get('editDurationHours')||0); 
-                    const m = parseInt(fd.get('editDurationMinutes')||0); 
-                    
-                    if (entryType !== 'product') {
-                        if (h === 0 && m === 0) { UI.showToast("Duration cannot be 0.", "error"); return; }
-                         if (totalServiceAmt === 0 && entryType === 'service') { UI.showToast("Service amount cannot be 0.", "error"); return; }
-                    }
-
-                    let d = ""; if(h>0)d+=`${h}h `; if(m>0)d+=`${m}m`; if(d==="") d="0m";
-
-                    Logic.updateRecord(id, { 
-                        date: new Date(fd.get('editDate')).toISOString(), 
-                        clientName: fd.get('editClientName'), 
-                        service: entryType==='product'?'Product Sale': servicesList.map(s=>s.name).join(', '),
-                        serviceDetails: servicesList,
-                        serviceAmount: totalServiceAmt, 
-                        productAmount: pa, 
-                        duration: entryType==='product'?null:d.trim(), 
-                        entryType: entryType,
-                        isNew: fd.get('editIsNew') === 'on',
-                        isRebook: fd.get('editIsRebook') === 'on'
-                    }); 
-                });
-                document.getElementById('clientEditForm').addEventListener('submit', (e) => { e.preventDefault(); Logic.updateClient(document.getElementById('clientEditId').value, document.getElementById('clientEditName').value, document.getElementById('clientEditEmail').value); });
-                document.getElementById('noteEditForm').addEventListener('submit', (e) => { e.preventDefault(); Logic.updateClientNote(document.getElementById('noteEditClientId').value, document.getElementById('noteEditId').value, document.getElementById('noteEditText').value); });
-
-                UI.switchTab('dashboard');
-            },
+            const target = Number(STATE.appUser.target || 0);
+            const remaining = Math.max(0, target - totalRev);
             
-            // ... (keep switchTab, refreshStats, renderGroupStats, renderTodayTable, renderHistoryTable, renderConfigTable, renderClientsList)
-            switchTab: (tabName) => {
-                window.currentTab = tabName;
-                document.querySelectorAll('nav button').forEach(b => {
-                    const isActive = b.id === `nav-${tabName}`;
-                    if (isActive) { b.classList.add('text-brand-pink'); b.classList.remove('text-zinc-500'); } 
-                    else { b.classList.remove('text-brand-pink'); b.classList.add('text-zinc-500'); }
-                });
-                const main = document.getElementById('main-content');
-                if (tabName === 'dashboard') { main.innerHTML = `<div id="stats-container"></div><div id="activity-container"></div>`; UI.refreshStats(); UI.renderTodayTable(); } 
-                else if (tabName === 'history') { main.innerHTML = `<div id="history-container"></div>`; UI.renderHistoryTable(); } 
-                else if (tabName === 'clients') { main.innerHTML = `<div id="clients-container"></div>`; UI.renderClientsList(); } 
-                else if (tabName === 'group') { main.innerHTML = `<div id="group-stats-container"></div>`; UI.renderGroupStats(); } 
-                else if (tabName === 'config') { main.innerHTML = `<div id="config-container"></div>`; UI.renderConfigTable(); }
-            },
-            refreshStats: () => { if (window.currentTab !== 'dashboard') return; const m = Logic.getMetrics(null, appState.currentDate); const cm = appState.currentDate.toLocaleString('default', { month: 'long', year: 'numeric' }); const ah = (m.totalRevenue / Math.max(m.totalRevenue, m.monthlyTarget, 1)) * 100; const th = (m.monthlyTarget / Math.max(m.totalRevenue, m.monthlyTarget, 1)) * 100; document.getElementById('stats-container').innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6"><div class="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm flex flex-col justify-center min-h-[350px]"><div class="flex justify-between items-center mb-8"><h3 class="text-[10px] font-black text-brand-black uppercase tracking-widest">Progress</h3><div class="flex items-center space-x-1 bg-zinc-50 rounded-lg p-1 border border-zinc-100"><button onclick="Logic.changeMonth(-1)" class="px-1 text-zinc-500 hover:text-brand-black"><i class="fas fa-chevron-left text-[10px]"></i></button><span class="text-[9px] font-black w-20 text-center uppercase text-brand-black">${cm}</span><button onclick="Logic.changeMonth(1)" class="px-1 text-zinc-500 hover:text-brand-black"><i class="fas fa-chevron-right text-[10px]"></i></button></div></div><div class="flex justify-center items-end space-x-10 h-64 pb-2 relative mx-auto w-full max-w-[280px]"><div class="flex flex-col items-center w-14 h-full justify-end relative"><div class="absolute right-full mr-4 flex flex-col items-end whitespace-nowrap" style="bottom: ${ah}%"><span class="text-[11px] font-black text-brand-pink">${m.percentageToTarget.toFixed(0)}%</span><span class="text-[10px] font-bold text-brand-pink">$${m.totalRevenue.toLocaleString()}</span></div><div style="height: ${ah}%;" class="w-full bg-brand-pink rounded-t shadow-md transition-all duration-1000"></div><span class="mt-3 text-[10px] font-black text-zinc-400 uppercase">Actual</span></div><div class="flex flex-col items-center w-14 h-full justify-end relative"><div class="absolute left-full ml-4 flex flex-col items-start whitespace-nowrap" style="bottom: ${th}%"><span class="text-[10px] font-bold text-zinc-400">$${m.monthlyTarget.toLocaleString()}</span></div><div style="height: ${th}%;" class="w-full bg-zinc-100 border-t border-x border-zinc-200 rounded-t shadow-sm transition-all duration-1000"></div><span class="mt-3 text-[10px] font-black text-zinc-400 uppercase tracking-tighter">Goal</span></div></div></div><div class="flex flex-col space-y-3"><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Total Revenue</p><p class="text-xl font-black text-brand-black">$${m.totalRevenue.toLocaleString()}</p></div><div class="text-right text-[9px] font-bold text-zinc-400 uppercase leading-relaxed">Svc: $${m.serviceRevenue}<br>Prod: $${m.productRevenue}</div></div><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Success Rate</p><p class="text-xl font-black text-brand-pink">${m.percentageToTarget.toFixed(1)}%</p></div><div class="text-right text-[10px] font-bold text-zinc-400 uppercase">of Target</div></div><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Rebooking Rate</p><p class="text-xl font-black text-brand-darkpink">${m.rebookingRate.toFixed(1)}%</p></div><div class="text-right text-[9px] font-bold text-zinc-400 uppercase leading-none">${m.rebookedClients} of ${m.totalClients} clients rebooked</div></div><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">New Clients</p><p class="text-xl font-black text-brand-black">${m.newClients}</p></div><div class="text-right text-[9px] font-bold text-zinc-400 uppercase">First Visits</div></div></div></div>`; },
-            renderGroupStats: () => { const m = Logic.getGroupMetrics(appState.currentDate); const ah = (m.totalRevenue / Math.max(m.totalRevenue, m.monthlyTarget, 1)) * 100; const th = (m.monthlyTarget / Math.max(m.totalRevenue, m.monthlyTarget, 1)) * 100; const cols = ['bg-brand-pink', 'bg-zinc-800', 'bg-zinc-400', 'bg-brand-lightpink', 'bg-zinc-600']; const segs = m.individualStats.map((s, i) => s.revenue <= 0 ? '' : `<div style="height: ${(s.revenue/m.totalRevenue)*100}%" class="${cols[i%cols.length]} border-b border-white/20 last:border-0"></div>`).join(''); const legs = m.individualStats.map((s, i) => `<div class="flex items-center text-[9px] text-zinc-600 font-bold"><span class="w-2.5 h-2.5 rounded-full ${cols[i % cols.length]} mr-1 shadow-sm"></span><span>${s.name}</span></div>`).join('');
-                const tallyHtml = Object.entries(m.serviceTally || {}).sort((a,b) => b[1] - a[1]).map(([name, count]) => `<div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded border border-gray-100"><span class="text-[10px] text-gray-600 font-medium truncate w-3/4" title="${name}">${name}</span><span class="text-[10px] font-black text-gray-900 bg-white px-2 py-0.5 rounded shadow-sm border border-gray-100">${count}</span></div>`).join('');
-                document.getElementById('group-stats-container').innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6"><div class="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm flex flex-col justify-center min-h-[380px]"><div class="flex justify-between items-center mb-10"><h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-10 text-center">Team Visuals</h3><div class="flex items-center space-x-1 bg-gray-50 rounded-lg p-0.5 border"><button onclick="Logic.changeMonth(-1)" class="px-1"><i class="fas fa-chevron-left text-[10px]"></i></button><span class="text-[9px] font-black w-20 text-center uppercase">${cm}</span><button onclick="Logic.changeMonth(1)" class="px-1"><i class="fas fa-chevron-right text-[10px]"></i></button></div></div><div class="flex justify-center items-end space-x-12 h-64 relative mx-auto w-full max-w-[300px] pb-4"><div class="flex flex-col items-center w-16 h-full justify-end relative"><div class="absolute right-full mr-4 flex flex-col items-end whitespace-nowrap" style="bottom: ${ah}%"><span class="text-[11px] font-bold text-brand-pink">${m.percentageToTarget.toFixed(1)}%</span><span class="text-[10px] font-bold text-brand-pink">$${m.totalRevenue.toLocaleString()}</span></div><div style="height: ${ah}%;" class="w-full rounded-t-lg overflow-hidden flex flex-col-reverse shadow-md transition-all duration-1000">${segs}</div><span class="mt-3 text-[10px] font-bold text-zinc-400 uppercase">Actual</span></div><div class="flex flex-col items-center w-16 h-full justify-end relative"><div class="absolute left-full ml-4 flex flex-col items-start whitespace-nowrap" style="bottom: ${th}%"><span class="text-[10px] font-bold text-blue-600">$${m.monthlyTarget.toLocaleString()}</span></div><div style="height:100%" class="w-full bg-blue-50 border-t border-x border-blue-100 rounded-t shadow-sm transition-all duration-1000"></div><span class="mt-3 text-[10px] font-bold text-zinc-400 uppercase tracking-tighter">Goal</span></div></div><div class="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-4 pt-4 border-t border-zinc-100">${legs}</div></div><div class="flex flex-col space-y-3"><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Team Revenue</p><p class="text-xl font-black text-brand-black">$${m.totalRevenue.toLocaleString()}</p></div><div class="text-right text-[9px] font-bold text-zinc-400 uppercase leading-relaxed">Svc: $${m.serviceRevenue}<br>Prod: $${m.productRevenue}</div></div><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Overall Achievement</p><p class="text-xl font-black text-brand-pink">${m.percentageToTarget.toFixed(1)}%</p></div><div class="text-right text-[10px] font-bold text-zinc-400 uppercase">Target Progress</div></div><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Avg Rebooking</p><p class="text-xl font-black text-brand-darkpink">${m.rebookingRate.toFixed(1)}%</p></div><div class="text-right text-[9px] font-bold text-zinc-400 uppercase leading-none">${m.rebookedClients} of ${m.totalClients} clients rebooked</div></div><div class="bg-white p-4 rounded-xl border border-zinc-100 shadow-sm flex justify-between items-center"><div><p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Team New Clients</p><p class="text-xl font-black text-brand-black">${m.newClients}</p></div><div class="text-right text-[10px] font-bold text-zinc-400 uppercase">Total Acquisitions</div></div></div></div><div class="bg-white rounded-xl border border-zinc-100 shadow-sm overflow-x-auto p-4 mb-4"><h3 class="text-sm font-bold text-brand-black mb-4">Therapist Breakdown</h3><table class="min-w-full"><thead class="bg-zinc-50 border-b border-zinc-100"><tr class="text-[10px] text-zinc-400 uppercase font-black"><th class="text-left py-3 px-2">Therapist</th><th class="text-right py-3 px-2 whitespace-nowrap">Total Rev</th><th class="text-right py-3 px-2 whitespace-nowrap">Svc ($)</th><th class="text-right py-3 px-2 whitespace-nowrap">Prod ($)</th><th class="text-right py-3 px-2 whitespace-nowrap">Target %</th><th class="text-right py-3 px-2 whitespace-nowrap">Rebook %</th><th class="text-center py-3 px-2">Clients</th><th class="text-center py-3 px-2">Rebooked</th></tr></thead><tbody class="divide-y divide-zinc-100">${m.individualStats.map(s => `<tr><td class="py-3 px-2 text-xs font-bold text-brand-black">${s.name}</td><td class="py-3 px-2 text-xs text-right font-bold text-brand-black">$${s.revenue.toLocaleString()}</td><td class="py-3 px-2 text-xs text-right text-zinc-400">$${s.serviceRevenue.toLocaleString()}</td><td class="py-3 px-2 text-xs text-right text-brand-pink font-medium">$${s.productRevenue.toLocaleString()}</td><td class="py-3 px-2 text-xs text-right text-zinc-400">${s.targetPct.toFixed(1)}%</td><td class="py-3 px-2 text-xs text-right font-bold text-brand-black">${s.rebookRate.toFixed(1)}%</td><td class="py-3 px-2 text-xs text-center text-zinc-400">${s.clients}</td><td class="py-3 px-2 text-xs text-center text-zinc-400">${s.rebooked}</td></tr>`).join('')}</tbody></table></div><div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-4"><h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Top Services This Month</h3><div class="flex flex-col space-y-2 max-h-64 overflow-y-auto">${tallyHtml || '<p class="text-xs text-gray-400 text-center italic">No services recorded this month.</p>'}</div></div>`; 
-            },
-            renderTodayTable: () => { const cont = document.getElementById('activity-container'); if (!cont) return; const today = new Date(); today.setHours(0,0,0,0); const records = appState.records.filter(r => { const rd = new Date(r.date); rd.setHours(0,0,0,0); return rd.getTime() === today.getTime() && r.therapistEmail === appState.user.email; }).sort((a, b) => new Date(a.date) - new Date(b.date)); cont.innerHTML = `<div class="bg-white rounded-2xl border border-zinc-100 p-4 shadow-sm"><h3 class="text-[10px] font-black text-brand-black uppercase tracking-widest mb-4">Today's Activity Log</h3><div class="overflow-x-auto"><table class="min-w-full"><thead class="border-b bg-zinc-50 border-zinc-100"><tr class="text-[8px] font-black text-zinc-400 uppercase tracking-tighter"><th class="text-left py-2 px-2 w-16">Date</th><th class="text-left py-2 px-2">Client & Service</th><th class="text-center py-2 px-1 w-12">New</th><th class="text-center py-2 px-1 w-12">Rbk</th><th class="text-right py-2 px-2">Total</th><th class="text-center py-2 px-2 w-20">Actions</th></tr></thead><tbody class="divide-y divide-zinc-100">${records.length === 0 ? '<tr><td colspan="6" class="py-12 text-center text-zinc-300 text-xs italic">No entries for today.</td></tr>' : records.map(r => `<tr class="hover:bg-zinc-50/50"><td class="py-3 px-2 align-top text-[9px] font-black text-zinc-400 uppercase leading-none">${new Date(r.date).toLocaleDateString([], {month:'numeric', day:'numeric'})}</td><td class="py-3 px-2 align-top"><div class="flex flex-col"><span class="text-[11px] font-bold text-brand-black leading-tight">${r.clientName}</span><span class="text-[9px] text-zinc-400 font-medium whitespace-normal">${r.service}</span>${r.duration ? `<span class="text-[8px] font-bold text-zinc-300"><i class="far fa-clock mr-0.5"></i>${r.duration}</span>` : ''}</div></td><td class="py-3 px-1 align-top text-center">${r.isNew ? '<span class="text-[8px] font-black bg-brand-lightpink text-brand-pink px-1 py-0.5 rounded border border-brand-pink/20">NEW</span>' : '—'}</td><td class="py-3 px-1 align-top text-center">${r.isRebook ? '<span class="text-[8px] font-black bg-zinc-100 text-brand-black px-1 py-0.5 rounded border border-zinc-200">REBOOKED</span>' : '—'}</td><td class="py-3 px-2 align-top text-right"><div class="flex flex-col"><span class="text-[11px] font-black text-brand-black leading-none">$${r.totalAmount.toFixed(2)}</span>${r.productAmount > 0 ? `<span class="text-[8px] font-bold text-brand-pink mt-1 leading-none">Incl. $${r.productAmount} P</span>` : ''}</div></td><td class="py-3 px-2 align-top text-center"><div class="flex items-center justify-center space-x-2"><button onclick="UI.openEditModal(${r.id})" class="text-zinc-300 hover:text-brand-pink transition-colors p-1"><i class="fas fa-pencil-alt text-sm"></i></button><button onclick="UI.openDeleteModal(${r.id})" class="text-zinc-200 hover:text-red-500 transition-colors p-1"><i class="fas fa-trash text-sm"></i></button></div></td></tr>`).join('')}</tbody></table></div></div>`; },
-            renderHistoryTable: () => { const cont = document.getElementById('history-container'); if (!cont) return; const tm = appState.currentDate.getMonth(); const ty = appState.currentDate.getFullYear(); const cm = appState.currentDate.toLocaleString('default', { month: 'long', year: 'numeric' }); const records = appState.records.filter(r => { const rd = new Date(r.date); return rd.getMonth() === tm && rd.getFullYear() === ty && r.therapistEmail === appState.user.email; }).sort((a, b) => new Date(a.date) - new Date(b.date)); cont.innerHTML = `<div class="bg-white rounded-2xl border border-zinc-100 p-4 shadow-sm"><div class="flex justify-between items-center mb-6"><div class="flex flex-col"><h3 class="text-[10px] font-black text-zinc-300 uppercase tracking-widest leading-none mb-1">Monthly History Log</h3><span class="text-sm font-bold text-brand-black">${cm}</span></div><div class="flex space-x-1"><button onclick="Logic.changeMonth(-1)" class="p-2 bg-zinc-50 rounded-xl text-zinc-500 hover:bg-zinc-100 transition-all"><i class="fas fa-chevron-left text-xs"></i></button><button onclick="Logic.changeMonth(1)" class="p-2 bg-zinc-50 rounded-xl text-zinc-500 hover:bg-zinc-100 transition-all"><i class="fas fa-chevron-right text-xs"></i></button></div></div><div class="overflow-x-auto"><table class="min-w-full"><thead class="bg-zinc-50 border-b border-zinc-100"><tr class="text-[8px] font-black text-zinc-400 uppercase tracking-tighter"><th class="text-left py-2 px-3 w-16">Date</th><th class="text-left py-2 px-3">Client & Info</th><th class="text-center py-2 px-1 w-12">New</th><th class="text-center py-2 px-1 w-12">Rbk</th><th class="text-right py-2 px-3">Total</th><th class="text-center py-2 px-3 w-20">Actions</th></tr></thead><tbody class="divide-y divide-zinc-100">${records.length === 0 ? '<tr><td colspan="6" class="py-12 text-center text-zinc-300 text-xs italic">No data logged for this period.</td></tr>' : records.map(r => `<tr class="hover:bg-zinc-50/50">
-                            <td class="py-3 px-3 align-top text-[10px] font-black text-zinc-300 uppercase">${new Date(r.date).toLocaleDateString([], { month: 'numeric', day: 'numeric' })}</td>
-                            <td class="py-3 px-3 align-top"><div class="flex flex-col"><span class="text-[11px] font-bold text-brand-black leading-tight">${r.clientName}</span><span class="text-[9px] text-zinc-400 font-medium truncate max-w-[150px]">${r.service}</span></div></td>
-                            <td class="py-3 px-1 align-top text-center">${r.isNew ? '<span class="text-[8px] font-black bg-brand-lightpink text-brand-pink px-1 py-0.5 rounded border border-brand-pink/20">NEW</span>' : '—'}</td>
-                            <td class="py-3 px-1 align-top text-center">${r.isRebook ? '<span class="text-[8px] font-black bg-zinc-100 text-brand-black px-1 py-0.5 rounded border border-zinc-200">REBOOKED</span>' : '—'}</td>
-                            <td class="py-3 px-3 align-top text-right"><div class="flex flex-col"><span class="text-[11px] font-black text-brand-black leading-none">$${r.totalAmount.toFixed(2)}</span>${r.productAmount > 0 ? `<span class="text-[8px] font-bold text-brand-pink">Incl. $${r.productAmount} P</span>` : ''}</div></td>
-                            <td class="py-3 px-3 align-top text-center"><div class="flex items-center justify-center space-x-2">
-                                <button onclick="UI.openEditModal(${r.id})" class="text-zinc-300 hover:text-brand-pink transition-colors p-1"><i class="fas fa-pencil-alt text-xs"></i></button>
-                                <button onclick="UI.openDeleteModal(${r.id})" class="text-zinc-200 hover:text-red-500 transition-colors p-1"><i class="fas fa-trash text-xs"></i></button>
-                            </div></td></tr>`).join('')}</tbody></table></div></div>`; },
-            renderClientsList: () => {
-                const cont = document.getElementById('clients-container');
-                if (!cont) return;
+            // Chart 1: Goal Doughnut
+            const ctx1 = document.getElementById('goalChart').getContext('2d');
+            if(STATE.charts.goal) STATE.charts.goal.destroy();
+            STATE.charts.goal = new Chart(ctx1, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Achieved', 'Remaining'],
+                    datasets: [{
+                        data: [totalRev, remaining],
+                        backgroundColor: ['#111827', '#f3f4f6'],
+                        borderWidth: 0,
+                        cutout: '75%'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: (c) => ` $${c.raw.toLocaleString()}` } }
+                    }
+                },
+                plugins: [{
+                    id: 'textCenter',
+                    beforeDraw: function(chart) {
+                        var width = chart.width, height = chart.height, ctx = chart.ctx;
+                        ctx.restore();
+                        var fontSize = (height / 114).toFixed(2);
+                        ctx.font = "bold " + fontSize + "em Inter";
+                        ctx.textBaseline = "middle";
+                        ctx.fillStyle = "#111827";
+                        var percent = target > 0 ? Math.round((totalRev/target)*100) : 0;
+                        var text = percent + "%", textX = Math.round((width - ctx.measureText(text).width) / 2), textY = height / 2;
+                        ctx.fillText(text, textX, textY);
+                        ctx.save();
+                    }
+                }]
+            });
 
-                // Simple Search Filtering
-                const searchTerm = document.getElementById('client-search-input')?.value.toLowerCase() || '';
+            // Chart 2: Breakdown Bar
+            const ctx2 = document.getElementById('breakdownChart').getContext('2d');
+            if(STATE.charts.breakdown) STATE.charts.breakdown.destroy();
+            STATE.charts.breakdown = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: ['Services', 'Retail'],
+                    datasets: [{
+                        label: 'Revenue',
+                        data: [servicesRev, retailRev],
+                        backgroundColor: ['#111827', '#cbd5e1'],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { display: false, grid: { display: false } },
+                        x: { grid: { display: false }, border: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // --- SECTION: HISTORY ---
+        function renderHistoryFilters() {
+            // Populate Month Dropdown based on existing sales
+            const select = document.getElementById('history-month-filter');
+            const months = new Set(STATE.sales.map(s => s.date.substring(0, 7))); // YYYY-MM
+            
+            // Ensure current month is always there
+            const current = getMonthId(new Date());
+            months.add(current);
+
+            const sortedMonths = Array.from(months).sort().reverse();
+            select.innerHTML = sortedMonths.map(m => {
+                const [y, mo] = m.split('-');
+                const label = new Date(y, mo-1).toLocaleString('default', { month: 'short', year: 'numeric' });
+                return `<option value="${m}" ${m === current ? 'selected' : ''}>${label}</option>`;
+            }).join('');
+            
+            renderHistory();
+        }
+
+        window.renderHistory = function() {
+            const monthFilter = document.getElementById('history-month-filter').value;
+            const tbody = document.getElementById('history-table-body');
+            
+            // Filter: Manager sees all, Therapist sees own
+            let filtered = STATE.sales.filter(s => s.date.startsWith(monthFilter));
+            if(STATE.appUser.role !== 'Manager') {
+                filtered = filtered.filter(s => s.staffId === STATE.appUser.id);
+            }
+            
+            // Sort newest first
+            filtered.sort((a, b) => b.date.localeCompare(a.date));
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-gray-400">No sales recorded for this period.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(sale => {
+                const staff = STATE.staff.find(s => s.id === sale.staffId)?.name || 'Unknown';
+                const client = STATE.clients.find(c => c.id === sale.clientId)?.name || 'Unknown';
+                const total = Number(sale.servicesAmount || 0) + Number(sale.retailAmount || 0);
                 
-                const filteredClients = appState.clients.filter(c => 
-                    c.name.toLowerCase().includes(searchTerm) || 
-                    (c.email && c.email.toLowerCase().includes(searchTerm))
+                let tags = '';
+                if(sale.isNewClient) tags += `<span class="bg-gray-100 text-gray-700 text-[10px] px-2 py-0.5 rounded mr-1 font-medium border border-gray-200">New</span>`;
+                if(sale.isRebooked) tags += `<span class="bg-green-50 text-green-700 text-[10px] px-2 py-0.5 rounded font-medium border border-green-200">Rebooked</span>`;
+
+                return `
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4 text-gray-600">${sale.date}</td>
+                        <td class="px-6 py-4 font-medium text-gray-900">${client}</td>
+                        <td class="px-6 py-4 text-gray-500">${staff.split(' ')[0]}</td>
+                        <td class="px-6 py-4 text-gray-500">${formatCurrency(sale.servicesAmount)}</td>
+                        <td class="px-6 py-4 text-gray-500">${formatCurrency(sale.retailAmount)}</td>
+                        <td class="px-6 py-4 font-bold text-gray-900 text-right">${formatCurrency(total)}</td>
+                        <td class="px-6 py-4 text-center">${tags}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // --- SECTION: CLIENTS ---
+        window.renderClientsList = function() {
+            const query = document.getElementById('client-search').value.toLowerCase();
+            const grid = document.getElementById('clients-grid');
+            
+            let filtered = STATE.clients;
+            if(query) {
+                filtered = filtered.filter(c => 
+                    (c.name && c.name.toLowerCase().includes(query)) || 
+                    (c.phone && c.phone.includes(query))
                 );
+            }
+            
+            // Sort alphabetical
+            filtered.sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
-                const html = `
-                    <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm min-h-[500px] flex flex-col">
-                        <div class="flex justify-between items-center mb-6">
-                            <h3 class="text-[10px] font-black text-gray-300 uppercase tracking-widest">Client Management</h3>
-                            <div class="relative w-full max-w-xs">
-                                <input type="text" id="client-search-input" value="${searchTerm}" oninput="UI.filterClients()" placeholder="Search clients..." class="w-full pl-8 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-xs focus:ring-1 focus:ring-teal-500 outline-none">
-                                <i class="fas fa-search absolute left-3 top-2.5 text-gray-400 text-xs"></i>
-                            </div>
+            if(filtered.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400">No clients found.</div>`;
+                return;
+            }
+
+            grid.innerHTML = filtered.map(client => `
+                <div onclick="openClientModal('${client.id}')" class="bg-white border border-gray-200 shadow-sm p-4 rounded-xl hover:border-gray-400 cursor-pointer transition flex items-center gap-4 group">
+                    <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 group-hover:bg-gray-200 group-hover:text-gray-900 transition">
+                        ${client.name ? client.name.charAt(0).toUpperCase() : '?'}
+                    </div>
+                    <div class="flex-1 overflow-hidden">
+                        <h4 class="font-bold truncate text-gray-900">${client.name}</h4>
+                        <p class="text-xs text-gray-500 truncate">${client.phone || 'No phone'}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // --- SECTION: GROUP ---
+        window.renderGroup = function() {
+            if(!STATE.appUser) return;
+            
+            // Calculate Start and End of Current Week (Monday - Sunday)
+            const now = new Date();
+            const day = now.getDay();
+            const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+            
+            const startOfWeek = new Date(now.setDate(diff));
+            startOfWeek.setHours(0, 0, 0, 0);
+            
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(endOfWeek.getDate() + 6);
+            endOfWeek.setHours(23, 59, 59, 999);
+            
+            // Aggregate Data
+            const staffPerformance = {};
+            STATE.staff.forEach(s => {
+                // Use the weekly target set in their profile
+                staffPerformance[s.id] = { name: s.name.split(' ')[0], total: 0, target: Number(s.target||0) };
+            });
+
+            const treatmentCounts = {};
+
+            // Filter sales to just this week
+            const weeklySales = STATE.sales.filter(s => {
+                const saleDate = new Date(s.date);
+                return saleDate >= startOfWeek && saleDate <= endOfWeek;
+            });
+
+            weeklySales.forEach(sale => {
+                if(staffPerformance[sale.staffId]) {
+                    staffPerformance[sale.staffId].total += (Number(sale.servicesAmount||0) + Number(sale.retailAmount||0));
+                }
+                if(sale.treatments) {
+                    const treats = sale.treatments.split(',').map(t => t.trim()).filter(t => t);
+                    treats.forEach(t => {
+                        treatmentCounts[t] = (treatmentCounts[t] || 0) + 1;
+                    });
+                }
+            });
+
+            // Chart: Team Leaderboard
+            const ctx = document.getElementById('teamChart').getContext('2d');
+            if(STATE.charts.team) STATE.charts.team.destroy();
+            
+            const labels = [], dataAchieved = [], dataTarget = [];
+            Object.values(staffPerformance).forEach(sp => {
+                labels.push(sp.name);
+                dataAchieved.push(sp.total);
+                dataTarget.push(sp.target);
+            });
+
+            STATE.charts.team = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Actual Revenue',
+                            data: dataAchieved,
+                            backgroundColor: '#111827',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Weekly Target',
+                            data: dataTarget,
+                            backgroundColor: '#e5e7eb',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { 
+                            display: true, 
+                            position: 'top', 
+                            align: 'end',
+                            labels: { boxWidth: 12, usePointStyle: true }
+                        },
+                        tooltip: { callbacks: { label: (c) => ` ${c.dataset.label}: $${c.raw.toLocaleString()}` } }
+                    },
+                    scales: {
+                        y: { 
+                            beginAtZero: true, 
+                            grid: { color: '#f3f4f6' },
+                            ticks: { callback: (val) => '$'+val }
+                        },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+
+            // List: Top Treatments
+            const topTreatments = Object.entries(treatmentCounts)
+                .sort((a,b) => b[1] - a[1])
+                .slice(0, 5);
+            
+            const treatList = document.getElementById('top-treatments-list');
+            if(topTreatments.length === 0) {
+                treatList.innerHTML = `<p class="text-sm text-gray-400">Not enough data this week.</p>`;
+            } else {
+                treatList.innerHTML = topTreatments.map(([name, count], index) => `
+                    <div class="flex items-center justify-between p-3 bg-white shadow-sm rounded-xl border border-gray-100">
+                        <div class="flex items-center gap-3">
+                            <span class="text-gray-400 font-bold text-sm w-4">${index+1}.</span>
+                            <span class="text-sm font-medium text-gray-900">${name}</span>
                         </div>
+                        <span class="text-xs bg-gray-50 border border-gray-200 px-2 py-1 rounded text-gray-600 font-medium">${count} logged</span>
+                    </div>
+                `).join('');
+            }
+        }
 
-                        <div class="flex-1 overflow-y-auto space-y-3">
-                            ${filteredClients.length === 0 ? '<div class="text-center py-10 text-gray-400 text-xs italic">No clients found matching your search.</div>' : ''}
-                            ${filteredClients.map(client => `
-                                <div class="border border-gray-100 rounded-xl overflow-hidden transition-all duration-200 hover:border-gray-300">
-                                    <div class="p-3 flex justify-between items-center cursor-pointer bg-white" onclick="UI.openClientDetailsModal('${client.id}')">
-                                        <div>
-                                            <h4 class="text-sm font-bold text-gray-900">${client.name}</h4>
-                                            <p class="text-[10px] text-gray-500">${client.email || 'No email'}</p>
-                                        </div>
-                                        <div class="flex items-center space-x-3">
-                                            <button onclick="event.stopPropagation(); UI.openClientModal('${client.id}')" class="text-gray-300 hover:text-teal-600 transition-colors p-1"><i class="fas fa-pencil-alt text-xs"></i></button>
-                                        </div>
-                                    </div>
-                                </div>
-                            `).join('')}
+        // --- SECTION: SETUP ---
+        window.renderSetupSection = function() {
+            if(STATE.appUser?.role !== 'Manager') return;
+
+            // Staff List
+            const slist = document.getElementById('setup-staff-list');
+            slist.innerHTML = STATE.staff.map(s => `
+                <div onclick="openStaffModal('${s.id}')" class="flex items-center justify-between p-3 bg-white shadow-sm rounded-xl border border-gray-100 cursor-pointer hover:border-gray-400 transition group">
+                    <div>
+                        <p class="font-medium text-sm text-gray-900">${s.name} <span class="text-xs bg-gray-100 border border-gray-200 text-gray-600 font-medium px-1.5 py-0.5 rounded ml-1">${s.role}</span></p>
+                        <p class="text-xs text-gray-500 mt-0.5">${s.email} | Target: ${formatCurrency(s.target || 0)}</p>
+                    </div>
+                    <svg class="w-5 h-5 text-gray-300 group-hover:text-gray-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </div>
+            `).join('');
+
+            // Services List
+            const srvlist = document.getElementById('setup-services-list');
+            if(STATE.services.length === 0) {
+                srvlist.innerHTML = `<p class="text-xs text-gray-400">No services added.</p>`;
+            } else {
+                srvlist.innerHTML = STATE.services.map(s => `
+                    <div class="flex items-center justify-between p-2 border-b border-gray-100 last:border-0">
+                        <span class="text-sm text-gray-600 font-medium">${s.name}</span>
+                        <div class="flex items-center gap-3">
+                            <span class="text-sm font-bold text-gray-900">${formatCurrency(s.price)}</span>
+                            <button onclick="deleteService('${s.id}')" class="text-gray-400 hover:text-red-500 text-lg">&times;</button>
                         </div>
                     </div>
-                `;
-                
-                cont.innerHTML = html;
-                
-                // Refocus search if it was active
-                const searchInput = document.getElementById('client-search-input');
-                if(searchInput && searchTerm) {
-                    searchInput.focus();
-                    searchInput.setSelectionRange(searchTerm.length, searchTerm.length);
-                }
-            },
-            renderConfigTable: () => { const cont = document.getElementById('config-container'); if (!cont) return; cont.innerHTML = `<div class="bg-white rounded-xl border border-zinc-100 shadow-sm p-3 mb-4 flex items-center justify-between"><h3 class="text-[9px] font-black text-brand-black uppercase tracking-widest mr-4">Add Staff Member</h3><div class="flex-1 flex space-x-2"><input type="email" id="newUserEmail" placeholder="Staff Email Address" class="flex-1 border rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-brand-pink outline-none bg-zinc-50"><button onclick="UI.handleAddUser()" class="bg-brand-black text-white px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow active:scale-95 transition-all hover:bg-zinc-800">Invite</button></div></div><div class="bg-white rounded-xl border border-zinc-100 shadow-sm overflow-hidden mb-4"><div class="px-4 py-2.5 border-b bg-zinc-50 flex justify-between items-center"><h3 class="text-[9px] font-black text-brand-black uppercase tracking-widest">Configuration</h3><button onclick="Logic.saveAllConfigs()" class="bg-brand-black text-white px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow active:scale-95 transition-all hover:bg-zinc-800">Save All Changes</button></div><div class="overflow-x-auto"><table class="min-w-full text-left"><thead class="bg-zinc-50 border-b border-zinc-100"><tr class="text-[8px] font-black text-zinc-400 uppercase tracking-tighter"><th class="px-4 py-3">Staff Profile</th><th class="px-4 py-3 w-32">Display Name</th><th class="px-4 py-3 w-20 text-right whitespace-nowrap">Rate ($)</th><th class="px-4 py-3 w-20 text-right whitespace-nowrap">Hrs/Wk</th><th class="px-4 py-3 w-24 text-right">Monthly Target</th></tr></thead><tbody class="divide-y divide-zinc-50">${appState.users.map(u => `<tr class="config-row hover:bg-zinc-50/50 transition-colors" data-email="${u.email}"><td class="px-4 py-3"><div class="flex flex-col"><span class="text-[10px] font-bold text-brand-black leading-tight">${u.email}</span><span class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mt-0.5">${u.role}</span></div></td><td class="px-4 py-3"><input type="text" value="${u.name}" class="input-name w-full border border-zinc-100 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-brand-pink outline-none transition-all"></td><td class="px-4 py-3"><input type="number" value="${u.hourlyRate}" oninput="UI.calculateRowTarget(this)" class="input-rate w-full border border-zinc-100 rounded px-2 py-1 text-xs text-right focus:ring-1 focus:ring-brand-pink outline-none transition-all"></td><td class="px-4 py-3"><input type="number" value="${u.agreedHours}" oninput="UI.calculateRowTarget(this)" class="input-hours w-full border border-zinc-100 rounded px-2 py-1 text-xs text-right focus:ring-1 focus:ring-brand-pink outline-none transition-all"></td><td class="px-4 py-3 text-right"><span class="target-cell text-[11px] font-black text-brand-black leading-tight">$${((u.hourlyRate * u.agreedHours) * 4).toLocaleString()}</span></td></tr>`).join('')}</tbody></table></div></div><div class="bg-white rounded-xl border border-zinc-100 shadow-sm p-3 mb-4"><h3 class="text-[9px] font-black text-brand-black uppercase tracking-widest mb-2">Service Menu Management</h3><div class="flex space-x-2 mb-3"><input type="text" id="newServiceName" placeholder="New Service Name" class="flex-1 border rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-brand-pink outline-none bg-zinc-50"><button onclick="UI.handleAddService()" class="bg-brand-pink text-white px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow active:scale-95 transition-all hover:bg-brand-darkpink"><i class="fas fa-plus"></i></button></div><div class="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto">${appState.services.map(s => `<div class="flex justify-between items-center bg-zinc-50 px-2 py-1.5 rounded border border-zinc-100"><span class="text-[10px] text-zinc-600 truncate mr-2" title="${s}">${s}</span><button onclick="UI.handleDeleteService('${s}')" class="text-zinc-300 hover:text-red-500"><i class="fas fa-times text-xs"></i></button></div>`).join('')}</div></div><div class="bg-white rounded-xl border border-zinc-100 shadow-sm p-3 mb-4"><div class="flex justify-between items-center mb-3"><h3 class="text-[9px] font-black text-brand-black uppercase tracking-widest">Client Database</h3><div class="flex space-x-2"><button onclick="UI.handleClearClients()" class="text-red-400 hover:text-red-600 text-[9px] font-bold uppercase">Clear All</button><span class="bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded text-[9px] font-bold">${appState.clients.length} Clients</span></div></div><div class="space-y-2"><textarea id="bulkClientInput" rows="3" class="w-full border rounded-lg p-2 text-xs focus:ring-1 focus:ring-brand-pink outline-none resize-none" placeholder="Paste list here (Name, Email) - one per line"></textarea><button onclick="UI.handleImportClients()" class="w-full bg-zinc-800 text-white py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-black transition-all">Import Clients</button></div></div>`; }
-        };
+                `).join('');
+            }
+        }
 
-        window.UI = UI; window.Logic = Logic;
-        window.addEventListener('DOMContentLoaded', UI.init);
+
+        // ----------------------------------------------------------------------
+        // 7. Modals & Data Entry (CRUD)
+        // ----------------------------------------------------------------------
+
+        window.closeModal = function(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        // --- Quick Add Sale ---
+        window.openQuickAddModal = function() {
+            document.getElementById('form-quick-add').reset();
+            document.getElementById('qa-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('qa-staff').value = STATE.appUser.id;
+            document.getElementById('qa-client-id').value = '';
+            document.getElementById('qa-client-suggestions').classList.add('hidden');
+            
+            // Initialize dynamic service rows
+            document.getElementById('qa-services-container').innerHTML = '';
+            addQaServiceRow();
+            calculateQaTotal();
+            
+            document.getElementById('modal-quick-add').classList.remove('hidden');
+        }
+
+        window.addQaServiceRow = function() {
+            const container = document.getElementById('qa-services-container');
+            const row = document.createElement('div');
+            row.className = 'flex gap-2 items-start qa-service-row';
+            
+            // Generate options based on setup services
+            const serviceOptions = STATE.services.map(s => 
+                `<option value="${s.id}" data-name="${s.name}" data-price="${s.price}">${s.name} ($${s.price})</option>`
+            ).join('');
+            
+            row.innerHTML = `
+                <div class="flex-1">
+                    <select class="w-full px-3 py-2 rounded-lg text-sm bg-gray-50 border border-gray-200 focus:border-gray-900 qa-service-select" onchange="handleQaServiceChange(this)">
+                        <option value="">-- Select Service --</option>
+                        ${serviceOptions}
+                        <option value="custom" class="font-medium text-gray-600">Custom Service...</option>
+                    </select>
+                    <input type="text" placeholder="Enter custom service name" class="w-full mt-2 px-3 py-2 rounded-lg text-sm bg-white border border-gray-300 focus:border-gray-900 hidden qa-custom-name">
+                </div>
+                <div class="w-24">
+                    <input type="number" min="0" step="0.01" placeholder="Price" class="w-full px-3 py-2 rounded-lg text-sm bg-gray-50 border border-gray-200 focus:border-gray-900 qa-service-price" oninput="calculateQaTotal()">
+                </div>
+                <button type="button" class="text-gray-400 hover:text-red-500 p-2" onclick="removeQaServiceRow(this)" title="Remove service">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            `;
+            container.appendChild(row);
+        }
+
+        window.handleQaServiceChange = function(selectEl) {
+            const row = selectEl.closest('.qa-service-row');
+            const priceInput = row.querySelector('.qa-service-price');
+            const customNameInput = row.querySelector('.qa-custom-name');
+            
+            if (selectEl.value === 'custom') {
+                customNameInput.classList.remove('hidden');
+                priceInput.value = '';
+                priceInput.focus();
+            } else if (selectEl.value !== '') {
+                customNameInput.classList.add('hidden');
+                const selectedOption = selectEl.options[selectEl.selectedIndex];
+                priceInput.value = selectedOption.dataset.price;
+            } else {
+                customNameInput.classList.add('hidden');
+                priceInput.value = '';
+            }
+            calculateQaTotal();
+        }
+
+        window.removeQaServiceRow = function(btn) {
+            btn.closest('.qa-service-row').remove();
+            calculateQaTotal();
+        }
+
+        window.calculateQaTotal = function() {
+            let total = 0;
+            document.querySelectorAll('.qa-service-price').forEach(input => {
+                total += Number(input.value) || 0;
+            });
+            document.getElementById('qa-services-total-display').innerText = formatCurrency(total);
+            document.getElementById('qa-services-amount').value = total;
+        }
+
+        // Client Auto-suggest Logic for Quick Add
+        const qaClientInput = document.getElementById('qa-client-name');
+        const qaSuggestDiv = document.getElementById('qa-client-suggestions');
+        
+        qaClientInput.addEventListener('input', (e) => {
+            const val = e.target.value.toLowerCase();
+            if(!val) {
+                qaSuggestDiv.classList.add('hidden');
+                document.getElementById('qa-client-id').value = '';
+                return;
+            }
+            
+            const matches = STATE.clients.filter(c => c.name.toLowerCase().includes(val));
+            if(matches.length > 0) {
+                qaSuggestDiv.innerHTML = matches.map(c => `
+                    <div class="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm border-b border-gray-100 last:border-0 text-gray-900 font-medium" 
+                         onclick="selectQaClient('${c.id}', '${c.name.replace(/'/g, "\\'")}')">
+                        ${c.name} <span class="text-xs text-gray-400 font-normal ml-1">${c.phone||''}</span>
+                    </div>
+                `).join('');
+                qaSuggestDiv.classList.remove('hidden');
+            } else {
+                qaSuggestDiv.innerHTML = `<div class="px-3 py-2 text-xs text-gray-500 italic">New client will be created</div>`;
+                qaSuggestDiv.classList.remove('hidden');
+                document.getElementById('qa-client-id').value = '';
+            }
+        });
+
+        window.selectQaClient = function(id, name) {
+            document.getElementById('qa-client-id').value = id;
+            qaClientInput.value = name;
+            qaSuggestDiv.classList.add('hidden');
+        }
+
+        // Hide suggestions on click outside
+        document.addEventListener('click', (e) => {
+            if(!qaClientInput.contains(e.target) && !qaSuggestDiv.contains(e.target)) {
+                qaSuggestDiv.classList.add('hidden');
+            }
+        });
+
+        window.submitQuickAdd = async function(e) {
+            e.preventDefault();
+
+            // Validate Services & Build Treatments List
+            let treatments = [];
+            let hasZeroPrice = false;
+
+            document.querySelectorAll('.qa-service-row').forEach(row => {
+                const select = row.querySelector('.qa-service-select');
+                const priceInput = row.querySelector('.qa-service-price');
+                const customInput = row.querySelector('.qa-custom-name');
+                
+                let name = '';
+                if(select.value === 'custom') name = customInput.value.trim() || 'Custom Service';
+                else if(select.value !== '') name = select.options[select.selectedIndex].dataset.name;
+
+                const price = Number(priceInput.value) || 0;
+
+                if (name || price > 0) { // Only process rows that have a service selected OR a price entered
+                    if (price <= 0) hasZeroPrice = true;
+                    treatments.push(name || 'Unnamed Service');
+                }
+            });
+
+            if (hasZeroPrice) {
+                showToast("Service prices must be greater than $0.", "error");
+                return;
+            }
+
+            const servicesAmount = Number(document.getElementById('qa-services-amount').value);
+            const retailAmount = Number(document.getElementById('qa-retail-amount').value);
+
+            if (servicesAmount === 0 && retailAmount === 0) {
+                 showToast("Please add at least one service or retail amount.", "error");
+                 return;
+            }
+
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.innerText = 'Saving...';
+
+            try {
+                let clientId = document.getElementById('qa-client-id').value;
+                const clientName = document.getElementById('qa-client-name').value.trim();
+
+                // 1. Create client if new
+                if (!clientId) {
+                    const newClient = { name: clientName, createdAt: new Date().toISOString() };
+                    const cRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), newClient);
+                    clientId = cRef.id;
+                }
+
+                // 2. Create Sale Record
+                const saleData = {
+                    date: document.getElementById('qa-date').value,
+                    staffId: document.getElementById('qa-staff').value,
+                    clientId: clientId,
+                    servicesAmount: servicesAmount,
+                    retailAmount: retailAmount,
+                    treatments: treatments.join(', '),
+                    isNewClient: document.getElementById('qa-is-new').checked,
+                    isRebooked: document.getElementById('qa-is-rebooked').checked,
+                    createdAt: new Date().toISOString()
+                };
+
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'sales'), saleData);
+                
+                showToast("Sale logged successfully!");
+                closeModal('modal-quick-add');
+            } catch (err) {
+                console.error(err);
+                showToast("Error saving sale.", "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Save Sale';
+            }
+        }
+
+        // --- Client Profile Modal ---
+        window.openClientModal = function(clientId) {
+            const form = document.getElementById('form-client');
+            form.reset();
+            const histSec = document.getElementById('client-history-section');
+            const histList = document.getElementById('client-history-list');
+            
+            if (clientId) {
+                const client = STATE.clients.find(c => c.id === clientId);
+                if(client) {
+                    document.getElementById('client-modal-title').innerText = "Edit Client";
+                    document.getElementById('client-id').value = client.id;
+                    document.getElementById('client-name').value = client.name || '';
+                    document.getElementById('client-phone').value = client.phone || '';
+                    document.getElementById('client-email').value = client.email || '';
+                    document.getElementById('client-notes').value = client.notes || '';
+                    
+                    // Show History
+                    histSec.classList.remove('hidden');
+                    const cSales = STATE.sales.filter(s => s.clientId === clientId).sort((a,b) => b.date.localeCompare(a.date));
+                    if(cSales.length > 0) {
+                        histList.innerHTML = cSales.map(s => {
+                            const tot = Number(s.servicesAmount||0) + Number(s.retailAmount||0);
+                            return `<div class="flex justify-between py-1.5 border-b border-gray-100 last:border-0">
+                                <span class="text-gray-600 font-medium text-xs">${s.date} <span class="text-gray-400 ml-1 font-normal">(${s.treatments||'Retail'})</span></span>
+                                <span class="font-bold text-gray-900">${formatCurrency(tot)}</span>
+                            </div>`;
+                        }).join('');
+                    } else {
+                        histList.innerHTML = `<span class="text-gray-400 italic">No past visits recorded.</span>`;
+                    }
+                }
+            } else {
+                document.getElementById('client-modal-title').innerText = "New Client";
+                document.getElementById('client-id').value = '';
+                histSec.classList.add('hidden');
+            }
+            document.getElementById('modal-client').classList.remove('hidden');
+        }
+
+        window.submitClient = async function(e) {
+            e.preventDefault();
+            const id = document.getElementById('client-id').value;
+            const data = {
+                name: document.getElementById('client-name').value.trim(),
+                phone: document.getElementById('client-phone').value.trim(),
+                email: document.getElementById('client-email').value.trim(),
+                notes: document.getElementById('client-notes').value.trim(),
+                updatedAt: new Date().toISOString()
+            };
+
+            try {
+                if (id) {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', id), data);
+                    showToast("Client updated!");
+                } else {
+                    data.createdAt = new Date().toISOString();
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), data);
+                    showToast("New client added!");
+                }
+                closeModal('modal-client');
+            } catch (err) {
+                console.error(err);
+                showToast("Error saving client.", "error");
+            }
+        }
+
+        // --- Setup Actions (Manager) ---
+        window.openStaffModal = function(staffId = null) {
+            document.getElementById('form-staff').reset();
+            if (staffId) {
+                const s = STATE.staff.find(x => x.id === staffId);
+                if(s) {
+                    document.getElementById('staff-id').value = s.id;
+                    document.getElementById('staff-name').value = s.name || '';
+                    document.getElementById('staff-email').value = s.email || '';
+                    document.getElementById('staff-pin').value = s.pin || '';
+                    document.getElementById('staff-role').value = s.role || 'Therapist';
+                    document.getElementById('staff-hourly').value = s.hourlyRate || 0;
+                    document.getElementById('staff-hours').value = s.hoursPerWeek || 0;
+                    document.getElementById('staff-modal-title').innerText = "Edit Staff";
+                    document.getElementById('btn-delete-staff').classList.remove('hidden');
+                }
+            } else {
+                document.getElementById('staff-id').value = '';
+                document.getElementById('staff-role').value = 'Therapist';
+                document.getElementById('staff-modal-title').innerText = "Add Staff";
+                document.getElementById('btn-delete-staff').classList.add('hidden');
+            }
+            document.getElementById('modal-staff').classList.remove('hidden');
+        }
+
+        window.submitStaff = async function(e) {
+            e.preventDefault();
+            const id = document.getElementById('staff-id').value;
+            const hourlyRate = Number(document.getElementById('staff-hourly').value);
+            const hoursPerWeek = Number(document.getElementById('staff-hours').value);
+            // Weekly target based on salary x hours worked x 4
+            const target = hourlyRate * hoursPerWeek * 4;
+
+            const data = {
+                name: document.getElementById('staff-name').value.trim(),
+                email: document.getElementById('staff-email').value.trim(),
+                pin: document.getElementById('staff-pin').value.trim(),
+                role: document.getElementById('staff-role').value,
+                hourlyRate,
+                hoursPerWeek,
+                target,
+                updatedAt: new Date().toISOString()
+            };
+
+            try {
+                if (id) {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'staff', id), data);
+                    showToast("Staff updated!");
+                } else {
+                    data.createdAt = new Date().toISOString();
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'staff'), data);
+                    showToast("Staff added!");
+                }
+                closeModal('modal-staff');
+            } catch(err) { 
+                showToast("Error saving staff", "error"); 
+                console.error(err); 
+            }
+        }
+
+        window.deleteStaff = async function() {
+            const id = document.getElementById('staff-id').value;
+            if(!id) return;
+            
+            if(confirm("Are you sure you want to remove this staff member?")) {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'staff', id));
+                    showToast("Staff removed.");
+                    closeModal('modal-staff');
+                } catch(e) { showToast("Error removing staff", "error"); }
+            }
+        }
+
+        window.openServiceModal = async function() {
+            const name = prompt("Service Name (e.g., Deep Tissue Massage):");
+            if(!name) return;
+            const price = prompt("Price ($):");
+            if(!price) return;
+
+            try {
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'services'), {
+                    name, price: Number(price)
+                });
+                showToast("Service added.");
+            } catch(e) { showToast("Error adding service", "error"); }
+        }
+
+        window.deleteService = async function(id) {
+            if(confirm("Delete this service?")) {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'services', id));
+            }
+        }
+
+        // --- Appointment Actions ---
+        window.openAppointmentModal = async function() {
+            const clientName = prompt("Client Name for Appointment:");
+            if(!clientName) return;
+            const time = prompt("Time (e.g., 10:00 AM):");
+            if(!time) return;
+            const service = prompt("Service:");
+
+            try {
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'appointments'), {
+                    date: new Date().toISOString().split('T')[0],
+                    time,
+                    clientName,
+                    service,
+                    staffId: STATE.appUser.id
+                });
+                showToast("Appointment added.");
+            } catch(e) { showToast("Error adding appointment", "error"); }
+        }
+
+        window.deleteAppointment = async function(id) {
+            if(confirm("Cancel this appointment?")) {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appointments', id));
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        // 8. Utilities (Toasts)
+        // ----------------------------------------------------------------------
+        function showToast(message, type = "success") {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bg = type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-white border-gray-200 shadow-xl text-gray-900';
+            toast.className = `${bg} border px-4 py-3 rounded-lg flex items-center gap-3 toast-enter text-sm font-medium`;
+            
+            toast.innerHTML = `
+                ${type === 'success' ? '<svg class="w-5 h-5 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>' : '<svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>'}
+                ${message}
+            `;
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(100%)';
+                toast.style.transition = 'all 0.3s ease-in';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Initialize!
+        window.addEventListener('DOMContentLoaded', () => {
+            initApp();
+        });
+
     </script>
-    <style>
-        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
-        ::-webkit-scrollbar { display: none; }
-        input, select, button, textarea { outline: none !important; }
-        .font-inter { font-family: 'Inter', sans-serif; }
-    </style>
-</head>
-<body><div id="app"></div></body>
+</body>
 </html>
